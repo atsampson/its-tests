@@ -1,0 +1,64 @@
+Test that STINK can carry . correctly across file boundaries.
+MUDDLE relies on this to implement its PURE/IMPURE macros (equivalent to
+TOLO/TOHI here).
+
+Note that all the source files end in HI mode, and must ensure that LO/HI are
+both updated at the end.
+
+:midas hilo1 mid
+:midas hilo2 mid
+:stink
+MHILO1 REL$L$$
+MHILO2 REL$L$$
+MHILO BIN$Y$$
+:job t
+:load hilo bin
+100/ ... ^N ...
+700000/ ... ^N ...
+hi=
+lo=
+
+It should assemble:
+100/	1,,1
+101/	1,,2
+102/	1,,3
+103/	1,,101
+104/	1,,102
+105/	1,,103
+700000/	7,,1
+700001/	7,,2
+700002/	7,,3
+700003/	7,,101
+700004/	7,,102
+700005/	7,,103
+And leave LO=106, HI=700006.
+
+Then try:
+:midas hilo3 mid
+:stink
+MHILO1 REL$L$$
+MHILO2 REL$L$$
+MHILO3 REL$L$$
+MHILO BIN$Y$$
+
+Which should continue the pattern, and leave LO=106, HI=700006:
+100/   1,,1
+101/   1,,2
+102/   1,,3
+103/   1,,101
+104/   1,,102
+105/   1,,103
+106/   1,,201
+107/   1,,202
+110/   1,,203
+LO/   0
+700000/   7,,1
+700001/   7,,2
+700002/   7,,3
+700003/   7,,101
+700004/   7,,102
+700005/   7,,103
+700006/   7,,201
+700007/   7,,202
+700010/   7,,203
+HI/   0
