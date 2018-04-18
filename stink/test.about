@@ -1,0 +1,11 @@
+Trivial example for STINK.
+
+:midas test1 mid
+:midas test2 mid
+:stink
+MTEST1 REL$L$$
+MTEST2 REL$L$$
+MTS TEST$Y$$
+:test
+
+Should print XXX and exit.

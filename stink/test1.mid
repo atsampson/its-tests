@@ -1,0 +1,11 @@
+TITLE ONE
+RELOCA
+
+.GLOBAL BLAH
+
+P=17
+
+BLAH:	.IOT 1,["X]
+	POPJ P,
+
+END
