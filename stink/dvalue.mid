@@ -1,0 +1,29 @@
+; -*-MIDAS-*-
+RELOCA
+
+; Suppose you're linking a program with STINK, and you want to see
+; what value an expression has at some point in the linking process.
+FOO"==42
+
+; .LOP X Y Z causes STINK to put Y into C and Z into D, then execute
+; the instruction "X C,D".
+; So stash the values we want into (unused) location 50-100 in STINK:
+.LOP <MOVEM @> <FOO> 50
+; Then drop into DDT:
+.LOP .VALUE
+; 50/ will show you the value.
+; $p will continue the link process.
+
+FOO==23
+
+; Quicker, if you only want to see one value...
+.LOP MOVE 0 <FOO>
+.LOP .VALUE
+; The next instruction stores C back into .VAL1, so DDT will type out:
+; .VAL 0; 1223>>MOVEM 4,5347	4/   0	5347/	23
+; The value from the previous LOP is here  -----^^
+
+; You could also call one of STINK's internal error UUOs.
+
+BEG:	.VALUE 0
+END BEG
