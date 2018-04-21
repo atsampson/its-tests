@@ -1,0 +1,17 @@
+;Test emitting references to constants in REL files.
+;LOC is set from two different globals to ensure that
+;MIDAS doesn't know what the offset is at assembly time.
+
+RELOCATABLE
+.GLOBAL POS1, POS2
+
+LOC POS1
+
+FUNC:	MOVE 1,[ASCIZ/xyzzy/]
+
+LOC POS2
+
+CONSTANTS
+
+END
+
