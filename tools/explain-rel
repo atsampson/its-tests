@@ -1,0 +1,331 @@
+#!/usr/bin/python
+# Provide an annotated listing for a MIDAS/STINK REL file.
+# Adam Sampson <ats@offog.org>
+
+import re
+import subprocess
+import sys
+
+# Define B4_9 = 35 ... B1_1 = 0.
+for w in range(1, 5):
+    for b in range(1, 10):
+        globals()["B%d_%d" % (w, b)] = ((w - 1) * 9) + b - 1
+
+SQUOZE = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.$%"
+
+class Word:
+    def __init__(self, addr, value, lines):
+        self.addr = addr
+        self.value = value
+        self.lines = lines
+
+    def bits(self, left, right=None):
+        if right is None:
+            right = left
+        return (self.value >> right) & ((1L << (1 + left - right)) - 1)
+
+    def squoze(self):
+        s = ""
+        v = self.value & ((1L << 32) - 1)
+        for i in range(6):
+            s = SQUOZE[v % 40] + s
+            v /= 40
+        return (self.value >> 32), s.rstrip()
+
+    def show(self, *fields):
+        print "%06o:  %012o  %s" % (self.addr, self.value,
+                                    "".join(str(f) for f in fields))
+
+    def dis(self, tag=None):
+        for i, l in enumerate(self.lines):
+            if i == 0 and tag is not None:
+                print (l + (" " * 70))[:70] + "(" + tag + ")"
+            else:
+                print l
+
+dummy_word = Word(0, 0, [])
+
+def note(*fields):
+    print "                       %s" % ("".join(str(f) for f in fields))
+
+# Each dis10 output line looks like:
+# 010503:  515350530000  hrlzi    7, 530000(10)   ;"IKHK  " "S.E0\0"
+# There may be continuation lines for complex instructions.
+word_re = re.compile(r'^([0-7]+):\s+([0-7]+)(\s+.*)?$')
+
+def read_file(args):
+    """Read an input file using dis10, and yield a Word for each word."""
+
+    p = subprocess.Popen(["dis10", "-r"] + args, stdout=subprocess.PIPE)
+    f = p.stdout
+
+    # Discard lines until we see the first address.
+    while True:
+        l = f.readline()
+        if l == "":
+            # No data. Input must be empty.
+            p.wait()
+            return
+
+        l = l.rstrip()
+        m = word_re.match(l)
+        if m is not None:
+            break
+
+    # Read the set of lines for each input word.
+    lines = []
+    while True:
+        lines.append(l)
+        addr = int(m.group(1), 8)
+        value = int(m.group(2), 8)
+
+        while True:
+            l = f.readline()
+            if l == "":
+                # End of input.
+                yield Word(addr, value, lines)
+                return
+
+            l = l.rstrip()
+            m = word_re.match(l)
+            if m is not None:
+                break
+
+        yield Word(addr, value, lines)
+        lines = []
+
+    p.wait()
+
+class Block:
+    def __init__(self, w):
+        self.EOF = w.bits(B4_9)
+        self.LCB = w.bits(B4_8, B4_6)
+        self.TYPE = w.bits(B4_5, B3_8)
+        self.COUNT = w.bits(B3_7, B3_1)
+        self.ADR = w.bits(B2_9, B1_1)
+
+def block_unknown(gen, b):
+    for i in range(b.COUNT):
+        w = gen.next()
+        w.dis("?")
+
+# Yuck...
+words_left = None
+codebits = None
+codebits_left = None
+spilled = False
+
+def block_standard_data(gen, b):
+    global words_left, codebits, codebits_left
+
+    words_left = b.COUNT
+    codebits = 0
+    codebits_left = 0
+
+    def get_word():
+        global words_left, spilled
+
+        # DIFF: It's not obvious from the doc that you can do this,
+        # but MIDAS will happily split, say, a 76 code across
+        # two blocks, so the first word is at the end of one,
+        # and the second at the start of the next.
+
+        if spilled:
+            w = gen.next()
+            w.show(" [spilled word]")
+            words_left -= 1
+            spilled = False
+
+        if words_left == 0:
+            note(" [second word will spill into next block]")
+            spilled = True
+            return dummy_word
+
+        w = gen.next()
+        words_left -= 1
+        return w
+
+    def get_code():
+        global codebits, codebits_left
+        if codebits_left == 0:
+            w = get_word()
+            w.show(" [code bits]")
+            codebits = w.value
+            codebits_left = 36
+
+        code = (codebits >> 33) & 7
+        codebits <<= 3
+        codebits_left -= 3
+        return code
+
+    while words_left > 0:
+        code = get_code()
+        w = get_word()
+
+        if code == 0:
+            w.dis()
+        elif code == 1:
+            w.dis("RR")
+        elif code == 2:
+            w.dis("RL")
+        elif code == 3:
+            w.dis("RLR")
+        elif code == 4:
+            f, s = w.squoze()
+            w.show("reference global: '%s', flags=%o" % (s, f))
+        elif code == 5:
+            f, s = w.squoze()
+            w.show("reference minus global: '%s', flags=%o" % (s, f))
+        elif code == 6:
+            f, s = w.squoze()
+            w.show("link request: '%s', flags=%o" % (s, f))
+            rf = ""
+            if (f & (1L << B4_7)) != 0:
+                rf = " (relocated)"
+
+            w = get_word()
+            w.show("chain pointer" + rf)
+        elif code == 7:
+            extend = get_code()
+            if extend in (0, 2, 4):
+                NAMES = {
+                    0: "define",
+                    2: "local-to-global", # DIFF: also does rename/expunge
+                    4: "redefine",
+                    }
+
+                f, s = w.squoze()
+                w.show("%s symbol: '%s', flags=%o" % (NAMES[extend], s, f))
+
+                w = get_word()
+                w.show("value")
+            elif extend == 3:
+                f, s = w.squoze()
+                w.show("library request: '%s', flags=%o" % (s, f))
+            elif extend == 5:
+                w.show("multiply next global reference by this")
+            elif extend == 6:
+                f, s = w.squoze()
+                w.show("define symbol as .: '%s', flags=%o" % (s, f))
+            else:
+                w.dis("code extend=%o?" % extend)
+        else:
+            w.dis("code=%o?" % code)
+
+def block_loader_command(gen, b):
+    if b.ADR == 0:
+        block_global_param(gen, b)
+        return
+    elif b.ADR == 1:
+        note("program starting address:")
+    elif b.ADR == 2:
+        note("set current loading location to:")
+    elif b.ADR == 4:
+        note("reset to previous loading location. ignored data:")
+    elif b.ADR == 5:
+        note("conditional test, LCB=%o. data:" % b.LCB)
+    elif b.ADR == 6:
+        note("set global offset to:")
+    elif b.ADR == 7:
+        note("execute PDP-10 instruction (op, AC, E):")
+    elif b.ADR == 8:
+        note("reset global offset to 0. ignored data:")
+    else:
+        note("? (ADR=%o):" % b.ADR)
+    block_standard_data(gen, b)
+
+def block_code_abs(gen, b):
+    note("will load at %o, not relocated" % b.ADR)
+    block_standard_data(gen, b)
+
+def block_code_rel(gen, b):
+    note("will load at %o, relocated" % b.ADR)
+    block_standard_data(gen, b)
+
+def block_prog_name(gen, b):
+    # DIFF: Doc says 1 word. MIDAS 73 generates 2.
+    left = b.COUNT
+
+    w = gen.next()
+    left -= 1
+    f, s = w.squoze()
+    RR = f & (1 << B1_3) # FIXME: right bit?
+    w.show("name='", s, "', relocation reset=", RR)
+
+    while left > 0:
+        w = gen.next()
+        w.dis("?")
+        left -= 1
+
+def block_global_param(gen, b):
+    w = gen.next()
+    f, s = w.squoze()
+    w.show("define global: '%s', flags=%o" % (s, f))
+    b.COUNT -= 1
+
+    note("value:")
+    block_standard_data(gen, b)
+
+def block_local_symbols(gen, b):
+    for i in range(b.COUNT / 2):
+        w = gen.next()
+        f, s = w.squoze()
+        w.show("define local: '%s', flags=%o" % (s, f))
+
+        w = gen.next()
+        w.show("value")
+
+BLOCK_TYPES = {
+    1: ("loader command", block_loader_command),
+    2: ("code", block_code_abs),
+    3: ("code", block_code_rel),
+    4: ("program name", block_prog_name),
+    5: ("library search", block_unknown),
+    6: ("FORTRAN COMMON", block_unknown),
+    7: ("global parameter assignment", block_global_param),
+    0o10: ("local symbols", block_local_symbols),
+    0o11: ("load-time conditional", block_unknown),
+    0o12: ("end conditional", block_unknown),
+    0o13: ("local symbols to be half-killed", block_unknown),
+    0o14: ("end of program", block_unknown),
+    0o15: ("entries", block_unknown),
+    0o16: ("external references", block_unknown),
+    0o17: ("load if needed", block_unknown),
+    0o20: ("global symbols", block_unknown),
+    0o21: ("fixups", block_unknown),
+    0o22: ("polish fixups", block_unknown),
+    }
+
+def read_rel(args):
+    gen = read_file(args)
+
+    while True:
+        try:
+            w = gen.next()
+        except StopIteration:
+            # This should be the only place we see EOF.
+            break
+        b = Block(w)
+        print
+
+        if b.EOF == 1:
+            w.show("end of file")
+            # We should stop reading; dump the rest of the file anyway.
+            try:
+                while True:
+                    w = gen.next()
+                    w.show("data after EOF")
+            except StopIteration:
+                break
+
+        name, handler = BLOCK_TYPES.get(b.TYPE, ("unhandled", block_unknown))
+
+        w.show("%s block, TYPE=%o, COUNT=%o" % (name, b.TYPE, b.COUNT))
+
+        handler(gen, b)
+
+        w = gen.next()
+        w.show(" [checksum]")
+
+if __name__ == "__main__":
+    read_rel(sys.argv[1:])
