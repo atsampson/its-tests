@@ -1,0 +1,60 @@
+;Test packing words into standard data blocks in REL format.
+
+;MIDAS's buffer has space for BSIZE=0o37 words:
+;codebits
+;data x12
+;codebits
+;data x12
+;codebits
+;data x3
+;checksum
+;Each "redefine symbol" (74) or expunge (76) will generate 3 codebits
+;and two words of data. The two words should *not* be split across
+;two different blocks, else STINK won't understand.
+
+RELOCATABLE
+1PASS
+
+LOC 200
+
+;74 redefine symbol
+A"==1
+B"==2
+C"==3
+D"==4
+E"==5
+F"==6
+G"==7
+H"==8
+I"==9
+J"==10
+K"==11
+L"==12
+M"==13
+N"==14
+O"==15
+WIN1"==1
+
+LOC 300
+
+;76 local-to-global (expunge unknown)
+;For non-obvious reasons, MIDAS doesn't emit a directive
+;for each of these, so we need lots to ensure that we have
+;more than a block's worth.
+EXPUNGE AA,BB,CC,DD,EE,FF
+EXPUNGE GG,HH,II,JJ,KK,LL
+EXPUNGE MM,NN,OO,PP,QQ,RR
+EXPUNGE SS,TT,UU,VV,WW,XX
+EXPUNGE YY,ZZ
+EXPUNGE AAA,BBB,CCC,DDD,EEE
+EXPUNGE FFF,GGG,HHH,III,JJJ
+EXPUNGE KKK,LLL,MMM,NNN,OOO
+EXPUNGE PPP,QQQ,RRR,SSS,TTT
+EXPUNGE UUU,VVV,WWW,XXX,YYY
+EXPUNGE ZZZ
+WIN2"==1
+
+;FIXME Also test 76 local-to-global.
+
+END
+
