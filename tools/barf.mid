@@ -1,0 +1,54 @@
+;.INSRT this file to define a BARF macro for formatted printing.
+;You must invoke BARFIM somewhere to define its helper functions.
+;The implementation of BARF came originally from JOTTO.
+
+.GLOBAL BARFMS
+
+;These registers can't be printed.
+;(Perhaps it'd be better to save all registers into a block?)
+AR==14
+AT==15
+AU==16
+
+DEFINE BARF MSG
+	PUSHJ P,[PUSH P,AR
+	      PUSH P,AU
+	      PUSH P,AT
+	      MOVE AR,[440700,,[ASCIZ \MSG\]]
+	      PUSHJ P,BARFMS
+	      POP P,AT
+	      POP P,AU
+	      POP P,AR
+	      POPJ P,]
+TERMIN
+
+;CHAN is the IO channel to write to.
+DEFINE BARFIM CHAN
+BARF0:	POP P,AU
+BARFMS:	ILDB AT,AR	;START TYPING A MESSAGE
+	CAIN AT,0	;SIGNALS END OF CHARACTER STRING
+	 JRST BARF1
+	CAIN AT,"#	;SIGNALS PLACE TO OUTPUT A VARIABLE NUMBER
+	 JRST BARFNM
+	PUSHJ P,BARFTY
+	JRST BARFMS
+BARF1:	MOVEI AT,15	;CARRIAGE RETURN
+	PUSHJ P,BARFTY
+	MOVEI AT,12	;LINE FEED
+	JRST BARFTY
+
+BARFNM:	PUSH P,AU	;OUTPUT THE NUMBER IN AN AC
+	PUSH P,[BARF0]
+	ILDB AU,AR	;PICK UP AC LOCATION
+	MOVE AT,-"0(AU)
+BARF3:	LSHC AT,-43
+	LSH AU,-1
+	DIVI AT,10	;octal
+	HRLM AU,(P)
+	SKIPE AT
+	PUSHJ P,BARF3
+	HLRZ AT,(P)
+	ADDI AT,"0
+BARFTY:	.IOT CHAN,AT
+	POPJ P,
+TERMIN
