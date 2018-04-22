@@ -1,0 +1,17 @@
+;Test that . refers to the right location in constants.
+RELOCA
+
+.GLOBAL PLACE
+LOC PLACE
+
+FUNC:	JFCL
+	SKIPA
+	JRST [	JFCL		;Usual idiom for a skippable block
+		JFCL
+		JRST .+1]	;This jump...
+	JFCL	;... should go back to here
+	JFCL
+	JRST [	JFCL		;... and not to here.
+		]
+
+END
