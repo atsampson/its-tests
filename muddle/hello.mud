@@ -1,0 +1,2 @@
+;"-*-MUDDLE-*-"
+<PRINT "Hello, world!">
