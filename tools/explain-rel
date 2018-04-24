@@ -130,6 +130,10 @@ def block_standard_data(gen, b):
         # two blocks, so the first word is at the end of one,
         # and the second at the start of the next.
 
+        # However, I'm pretty convinced that this is a MIDAS bug,
+        # since STINK doesn't understand it. If you're writing a
+        # tool that reads REL files, you should warn if you see this.
+
         if spilled:
             w = gen.next()
             w.show(" [spilled word]")
