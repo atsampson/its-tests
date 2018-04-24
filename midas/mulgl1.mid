@@ -1,0 +1,7 @@
+;Test whether a global can be multiplied by a constant.
+RELOCA
+.GLOBAL FOO
+
+CODE:	MOVEI 0,FOO*42
+
+END

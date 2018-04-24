@@ -1,0 +1,6 @@
+RELOCA
+FOO"==3
+
+MAIN:	JFCL
+
+END MAIN
