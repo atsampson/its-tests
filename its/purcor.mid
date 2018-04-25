@@ -1,0 +1,103 @@
+;Test making core pages pure, like MDL wants to do.
+
+.INSRT BARF MID
+
+A=1
+B=2
+E=5
+P=17
+
+CHO==1
+
+LOBOT==100
+HIBOT==20000	;around 700000 in MDL - but for a sensible SBLK file...
+PHIBOT==HIBOT/2000
+
+;Impure bits
+LOC LOBOT
+PDL:	BLOCK 6000
+FRETOP==.
+
+;Pure bits
+LOC HIBOT
+START:	MOVEI P,PDL
+	.OPEN CHO,[.UAO,,'TTY]
+	 .LOSE
+
+	BARF [Page map on startup:]
+	PUSHJ P,CORPRT
+
+;This is adapted from PURIMP in MDL's INITM.
+
+	MOVEI	A,FRETOP	;MOVE in original
+	SUBI	A,1
+	LSH	A,-12
+	MOVE	B,A		;B=A=highest page in low core
+	MOVNI	A,1(A)
+	HRLZ	A,A
+	BARF [Impurify low core, A=#1:]
+	.CALL [	SETZ ? SIXBIT/CORBLK/
+		%CLERR,,E
+		%CLIMM,,%CBRED+%CBNDW+%CBNDR
+		%CLIMM,,-1
+		SETZ A]
+	 BARF [First CORBLK failed E=#5 A=#1]
+	PUSHJ P,CORPRT
+
+	MOVEI	A,PHIBOT	;A=lowest page in high core
+	ADDI	B,1
+	SUB	A,B
+	MOVNS	A
+	HRL	B,A
+	BARF [Flush middle core, B=#2:]
+	.CALL [	SETZ ? SIXBIT/CORBLK/
+		%CLERR,,E
+		%CLIMM,,0	;delete page
+		%CLIMM,,-1
+		SETZ B]
+	 BARF [Second CORBLK failed E=#5 B=#2]
+	PUSHJ P,CORPRT
+
+;RHITOP is always a multiple of 2000 in the original; it points to the
+;first unused location after the high segment.
+
+;MDL does this:
+;Fails with E=32=%EROPG, CAN'T GET THAT ACCESS TO PAGE
+;A=777414000014, i.e. it made pages 10-13 (that exist) pure,
+;and failed on page 14 (which doesn't exist).
+;	MOVE A,[-<400-PHIBOT>,,PHIBOT]
+
+;Instead:
+	MOVEI	B,RHITOP	;should be MOVE in original
+	SUBI	B,1
+	ASH	B,-10.		;B=last page used
+	MOVEI	A,PHIBOT
+	SUB	A,B
+	SUBI	A,1
+	HRLS	A
+	HRRI	A,PHIBOT
+
+	BARF [Purify high core, A=#1:]
+	.CALL [	SETZ ? SIXBIT/CORBLK/
+		%CLERR,,E
+		%CLIMM,,%CBRED+%CBNDR
+		%CLIMM,,-1
+		SETZ A]
+	 BARF [Third CORBLK failed E=#5 A=#1]
+	PUSHJ P,CORPRT
+
+	BARF [Done!]
+	.LOGOUT 2,
+
+CORPRT:	.VALUE [ASCIZ/:corprt
+p/]
+	POPJ P,
+
+; Fill out some more pages...
+DUMMY:	BLOCK 6000
+
+BARFIM CHO
+
+RHITOP==.
+
+END START
