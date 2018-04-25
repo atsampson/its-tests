@@ -1,0 +1,26 @@
+:job test
+!
+*:load ts 1procd
+*$0g
+START>>MOVE P,PDL+10   P/   0   PDL+10/   -10,,BYTE      ^N
+START+1>>SKIPA   0/   0      ^N
+START+3>>JRST L1      ^N
+L1>>PUSHJ P,L2      ^N
+L2>>JFCL      ^N
+L2+1>>POPJ P,   PDL/   10000,,L1+1      ^N
+L1+1>>MOVE A,PDL+11   A/   0   PDL+11/   11346,,105000      ^N
+L1+2>>.EVAL A,   A/   11346,,105000      ^N
+L1+4>>MOVE A,PDL+12   A/   153750   PDL+12/   14544,,243324      ^N
+L1+5>>.EVAL A,   A/   14544,,243324      ^N
+L1+6>>SKIPA   0/   0      ^N
+L1+10>>XCT PDL+13   PDL+13/   JFCL 6      ^N
+L1+11>>MOVE A,PDL+15   A/   14544,,243324   PDL+15/   ANDCB 16,BYTE      ^N
+L1+12>>ILDB A,A   A/   ANDCB 16,BYTE   A/   ANDCB 16,BYTE      ^N
+L1+13>>CAIE A,START+1   A/   START+1      ^N
+L1+15>>JSR L3      ^N
+L3+1>>JRST @L3   E.A. _ L1+16   ^N
+L1+16>>JSP A,L4   A/   START+1      ^N
+L4>>JFCL      ^N
+L4+1>>JRST A(A)   E.A. _ L1+20   ^N
+L1+20>>.LOGOU A,   A/   10000,,L1+17      ^N
+:KILL

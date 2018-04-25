@@ -1,0 +1,70 @@
+title One-proceed test.
+
+a=1
+p=17
+pdllen=10
+
+start:  move p,[-pdllen,,pdl-1]
+
+	; A skip instruction.
+	skipa
+	 .lose
+
+	; A jump instruction.
+	jrst l1
+	.lose
+
+	; A subroutine call.
+l1:	pushj p,l2
+
+	; A successful system call.
+	move a,[squoze 0,beg]
+	.eval a,
+	 .lose
+
+	; A failed system call.
+	move a,[squoze 0,foobar]
+	.eval a,
+	 skipa
+	  .lose
+
+	; An XCT instruction.
+	xct [jfcl 6 ? .lose]
+
+	; An ILDB instruction.
+	move a,[440700,,byte]
+	ildb a,a
+	caie a,"A
+	 .lose
+
+	; A JSR instruction.
+	jsr l3
+
+	; A JSP instruction.
+	jsp a,l4
+	 .lose
+
+	.logout 1,
+
+
+	; A subroutine return.
+l2:	jfcl
+	popj p,
+
+l3:	0
+	jrst @l3
+
+	; Skip return.
+l4:	jfcl
+	jrst 1(a)
+
+byte:	ascii /A/
+
+pdl:	block pdllen
+
+end start
+
+
+;; Local Modes:
+;; Compile Command: :midas ts 1procd_1procd >
+;; End:
