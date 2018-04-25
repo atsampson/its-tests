@@ -1,0 +1,15 @@
+; -*-MIDAS-*-
+TITLE HELLO
+
+a==1
+b==1
+ch==1
+
+START:
+	.open ch,[.uao,,'tty]
+	 .lose
+	.iot ch,["!]
+	.value 0
+	.logout 2,
+
+END START
