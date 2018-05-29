@@ -1,0 +1,263 @@
+#!/usr/bin/python
+# Provide an annotated listing for a SUDS DRW file.
+# Adam Sampson <ats@offog.org>
+
+# FIXME: This is rather incomplete - the problem I was tracking down turned out
+# to be in the header of the file.
+
+# FIXME: This only implements format 25/26; it should have conditionals for the
+# things that change between formats.
+
+# The file format description in dscr.txt only describes a single version of
+# the format; in reality, it varies quite a bit depending on the IO version
+# (the first word).
+# See IN > for the code that actually reads these files.
+
+from dis10 import *
+
+import sys
+
+def todo():
+    note("not yet implemented")
+    sys.exit(1)
+
+def read_drw(args):
+    gen = read_file(args)
+
+    def get_asciz():
+        s = ""
+        while True:
+            w = gen.next()
+            w.show("ASCIZ")
+            for i in range(5):
+                c = w.bits(35 - (i * 7), 29 - (i * 7))
+                if c == 0:
+                    return s
+                s += chr(c)
+
+    def get_coord():
+        w = gen.next()
+        return w, w.bits(35, 18), w.bits(17, 0)
+
+    # RDFILE {
+    # TYPIN {
+    # GETVER {
+
+    w = gen.next()
+    # "oldest version does not have this but starts with a body name"
+    w.show("IO version")
+
+    s = get_asciz()
+    note("nomenclature: ", repr(s))
+
+    # advent.drw has this, prot.drw doesn't...
+    # In ITS only if ver > NOMVER=26 (but advent.drw is 25)
+    s = get_asciz()
+    note("board type:", repr(s))
+
+    # }
+    # DOLBTY -> RDLTYP {
+
+    note()
+    note("Library bodies used:")
+    while True:
+        s = get_asciz()
+        if s == "":
+            break
+        note("Name: ", repr(s))
+
+    # } -> GETLIB {
+
+    note()
+    note("Libraries:")
+    while True:
+        w = gen.next()
+        if w.value == 0:
+            w.show()
+            break
+        w.show("filename")
+        w = gen.next()
+        w.show("ext,,bits")
+        w = gen.next()
+        w.show("ppn")
+
+    # } -> RDTYP {
+
+    note()
+    note("Types:")
+    while True:
+        # RDTYPX {
+        s = get_asciz()
+        if s == "":
+            break
+        note("Type name: ", repr(s))
+        # ver < 23
+        #note("DIP type: ", repr(get_asciz()))
+        w = gen.next()
+        w.show("bits,,unused")
+        w, x, y = get_coord()
+        w.show("initial body loc offset: ", (x, y))
+        w, x, y = get_coord()
+        w.show("initial body loc char offset: ", (x, y))
+
+        # -> NODTYP
+
+        note("pins:")
+        while True:
+            w, x, y = get_coord()
+            if w.value == 0o400000:
+                w.show()
+                break
+            w.show("loc of pin: ", (x, y))
+            w = gen.next()
+            w.show("bits,,pinid")
+            w = gen.next()
+            w.show("pin pos,,pin name")
+
+        # -> RPINDN
+
+        note("lines:")
+        while True:
+            w, x, y = get_coord()
+            if w.value == 0o400000:
+                w.show()
+                break
+            w.show(x, ", ", y)
+
+        # -> RLINDN -> RBTXTN
+
+        # PROPIN {
+
+        while True:
+            s = get_asciz()
+            if s == "":
+                break
+            note("body text value: ", repr(s))
+            note("property name: ", repr(get_asciz()))
+            w = gen.next()
+            w.show("text size")
+            w, x, y = get_coord()
+            w.show("text location: ", (x, y))
+            w = gen.next()
+            w.show("constant offset")
+
+        note()
+
+    note()
+    note("Macros:")
+    while True:
+        s = get_asciz()
+        if s == "":
+            break
+        note("macro name: ", repr(s))
+
+        going = True
+        while going:
+            w = gen.next()
+            w.show("macro body")
+            for i in range(4):
+                b = w.bits(35 - (i * 9), 27 - (i * 9))
+                if b == 0:
+                    going = False
+                    break
+                note("value: ", b)
+
+        note()
+
+    note()
+    note("Bodies:")
+    while True:
+        w, x, y = get_coord()
+        if w.value == 0o400000:
+            w.show()
+            break
+        w.show("loc of body: ", (x, y))
+        w = gen.next()
+        w.show("orientation")
+        if (w.value & 0o400000) != 0:
+            w = gen.next()
+            w.show("n,l,x,n,l,n")
+            w, x, y = get_coord()
+            w.show("constant offset: ", (x, y))
+            w, x, y = get_coord()
+            w.show("char offset: ", (x, y))
+        w = gen.next()
+        w.show("xwd body bits,body id")
+        s = get_asciz()
+        note("type used to generate body: ", repr(s))
+        while True:
+            s = get_asciz()
+            if s == "":
+                break
+            note("value: ", repr(s))
+            note("property name: ", repr(get_asciz()))
+            w = gen.next()
+            w.show("text size")
+            w, x, y = get_coord()
+            w.show("text location: ", (x, y))
+            w = gen.next()
+            w.show("constant offset")
+
+        note()
+
+    note()
+    note("Points:")
+    while True:
+        w, x, y = get_coord()
+        if w.value == 0o400000:
+            w.show()
+            break
+        w.show("loc of point: ", (x, y))
+        for s in ("point ID", "down ID", "up ID", "left ID", "right ID"):
+            w = gen.next()
+            w.show(s)
+        w = gen.next()
+        w.show("xwd bits,pin #")
+        bits = w.value
+        w = gen.next()
+        w.show("size of text")
+        if w.value != 0:
+            w, x, y = get_coord()
+            w.show("text offset: ", (x, y))
+            s = get_asciz()
+            note("text: ", repr(s))
+        if (bits & 0o1000) != 0:   # CPIN
+            w = gen.next()
+            w.show("connector pin n,l,x,n,l,l,n")
+            w, x, y = get_coord()
+            w.show("offset: ", (x, y))
+
+        note()
+
+    note()
+    note("Sets:")
+    while True:
+        w, x, y = get_coord()
+        if w.value == 0o400000:
+            w.show()
+            break
+        w.show("loc of set center: ", (x, y))
+        todo()
+
+    note()
+    note("drawn by: ", repr(get_asciz()))
+    note("title 1: ", repr(get_asciz()))
+    note("title 2: ", repr(get_asciz()))
+    w = gen.next()
+    w.show("card loc n,l,x,n,0")
+    note("revision: ", repr(get_asciz()))
+    note("module: ", repr(get_asciz()))
+    note("variable: ", repr(get_asciz()))
+    note("prefix: ", repr(get_asciz()))
+    note("project: ", repr(get_asciz()))
+    note("page: ", repr(get_asciz()))
+    note("of: ", repr(get_asciz()))
+    note("site 1: ", repr(get_asciz()))
+    note("site 2: ", repr(get_asciz()))
+    # next higher assembly... in DEC version
+    note("board type: ", repr(get_asciz()))
+    w = gen.next()
+    w.show("end - should be 0")
+
+if __name__ == "__main__":
+    read_drw(sys.argv[1:])
