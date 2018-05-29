@@ -17,10 +17,19 @@ class Word:
         self.value = value
         self.lines = lines
 
-    def bits(self, left, right=None):
+    def bits(self, left=35, right=None):
         if right is None:
             right = left
         return (self.value >> right) & ((1L << (1 + left - right)) - 1)
+
+    def sbits(self, left=35, right=None):
+        if right is None:
+            right = left
+        val = self.bits(left, right)
+        topbit = 1 << (left - right)
+        if (val & topbit) != 0:
+            return val - (topbit << 1)
+        return val
 
     def squoze(self):
         s = ""
