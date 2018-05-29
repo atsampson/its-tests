@@ -1,0 +1,136 @@
+#!/usr/bin/python
+# Convert a KST bitmap font into BDF format.
+# Adam Sampson <ats@offog.org>
+
+from dis10 import *
+
+from collections import namedtuple
+import os
+import sys
+
+Glyph = namedtuple("Glyph", ["left_kern", "raster_width", "char_width", "data"])
+
+def convert(args):
+    gen = read_file(args)
+
+    def out(s):
+        sys.stdout.write(s)
+        sys.stdout.write("\n")
+
+    # XXX assumes filename is last
+    basename = os.path.basename(args[-1])
+
+    w = gen.next()
+    kstid = w.value
+    w = gen.next()
+    col_pos_adj = w.bits(35, 27)
+    base_line = w.bits(26, 18)
+    height = w.bits(17, 0)
+
+    fbb_width = 0
+    fbb_height = height
+    fbb_xoff = 0
+    fbb_yoff = -(height - base_line)
+
+    glyphs = {}
+    while True:
+        w = gen.next()
+        if w.sbits() == -1:
+            break
+
+        w = gen.next()
+        left_kern = w.sbits(35, 18)
+        char_code = w.bits(17, 0)
+        w = gen.next()
+        raster_width = w.bits(35, 18)
+        char_width = w.bits(17, 0)
+        if raster_width == 0:
+            raster_width = char_width
+
+        # Expand the font's bounding box if needed.
+        if left_kern < fbb_xoff:
+            fbb_xoff = left_kern
+        eff_width = raster_width + left_kern
+        if eff_width > fbb_width:
+            fbb_width = eff_width
+
+        w = None
+        left = 0
+        lines = []
+        for y in range(height):
+            data = []
+            for i in range((raster_width + 7) / 8):
+                if left == 0:
+                    w = gen.next()
+                    left = 4
+                val = w.bits(35, 28)
+
+                # Reverse the order of the bits in val.
+                flipped = 0
+                for i in range(8):
+                    flipped = (flipped << 1) | ((val >> i) & 1)
+
+                data.append(flipped)
+                w.value <<= 8
+                left -= 1
+            lines.append(data)
+
+        glyphs[char_code] = Glyph(left_kern, raster_width, char_width, lines)
+
+    # XXX not true for 5x7
+    res = 200
+    points = 72 * height / res
+
+    props = {
+        "FONT_ASCENT": base_line,
+        "FONT_DESCENT": height - base_line,
+        "DEFAULT_CHAR": 0, # FIXME?
+        }
+
+    xlfd_bits = [
+        ("FOUNDRY", "MIT"),
+        ("FAMILY", basename.upper().replace(".", " ")),
+        ("WEIGHT_NAME", "Medium"),
+        ("SLANT", "R"), #XXX
+        ("SETWIDTH_NAME", "Normal"),
+        ("ADD_STYLE_NAME", ""),
+        ("PIXEL_SIZE", height),
+        ("POINT_SIZE", points),
+        ("RESOLUTION_X", res),
+        ("RESOLUTION_Y", res),
+        ("SPACING", "P"), #XXX
+        ("AVERAGE_WIDTH", sum(v.char_width for v in glyphs.values()) / len(glyphs)),
+        ("CHARSET_REGISTRY", "ISO8859"),
+        ("CHARSET_ENCODING", "1"),
+        ]
+    for k, v in xlfd_bits:
+        props[k] = v
+
+    out("STARTFONT 2.1")
+    out("FONT -%s" % "-".join(str(v) for k, v in xlfd_bits))
+    out("SIZE %d %d %d" % (points, res, res))
+    out("FONTBOUNDINGBOX %d %d %d %d" % (fbb_width, fbb_height, fbb_xoff, fbb_yoff))
+    out("STARTPROPERTIES %d" % len(props))
+    for k, v in sorted(props.items()):
+        if isinstance(v, str):
+            v = '"' + v.replace('"', '""') + '"'
+        else:
+            v = str(v)
+        out('%s %s' % (k, v))
+    out("ENDPROPERTIES")
+    out("CHARS %d" % len(glyphs))
+    for k, v in sorted(glyphs.items()):
+        # FIXME adjust encoding
+        out("STARTCHAR char%d" % k)
+        out("ENCODING %d" % k)
+        out("SWIDTH %d %d" % (v.char_width * (1000 / points), 0)) # XXX?
+        out("DWIDTH %d %d" % (v.char_width, 0))
+        out("BBX %d %d %d %d" % (v.raster_width, height, -v.left_kern, -(height - base_line)))
+        out("BITMAP")
+        for line in v.data:
+            out("".join("%02X" % v for v in line))
+        out("ENDCHAR")
+    out("ENDFONT")
+
+if __name__ == "__main__":
+    convert(sys.argv[1:])
