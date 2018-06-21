@@ -1,0 +1,172 @@
+title Sweeping clock hand
+
+a==1
+b==2
+c==3
+d==4
+t==10
+p==17
+
+dstop==003000
+
+;modes
+point==020000
+chara==060000
+vector==100000
+
+;point mode
+verti==200000
+
+;vector mode
+escape==400000
+visib==200000
+
+define dstart x,y
+	verti+point+y
+	vector+x
+termin
+
+define magn x
+ifl x,200-x
+.else x
+termin
+
+;	visib+<magn y>_8+<magn x>
+define draw x,y
+ifl x, ifl y,visib+100000+<<-y>_8>+200-x
+ifge x, ifl y,visib+100000+<<-y>_8>+x
+ifl x, ifge y,visib+<y_8>+200-x
+ifge x, ifge y,visib+<y_8>+x
+termin
+
+define ssfix a,b
+        muli a,400
+        tsc a,a
+        ash a+1,-243+19.!b(a)
+termin
+
+;floating to`integer conversion -- works for pos/neg
+define ifix a
+        push p,a+1
+        ssfix a,-19.
+        move a,a+1
+        pop p,a+1
+termin
+
+.vector pdl(pdllen==100)
+
+go:	move p,[-pdllen,,pdl-1]
+
+	;.dstart [-dlen,,dlist-1]
+	.dstart [dlist-2000,,dlist-1]
+	 .lose
+
+	move d,[0.0]
+loop:
+	move c,[002200,,dlist+1]
+	movei b,0
+
+	move a,d
+	pushj p,cos
+	fmpr a,[126.0]
+	ifix a
+	jumpl a,[movns a ? iori a,200 ? jrst .+1]
+	iori b,(a)
+	iori b,visib
+
+	move a,d
+	pushj p,sin
+	fmpr a,[126.0]
+	ifix a
+	jumpl a,[movns a ? iori a,200 ? jrst .+1]
+	andcmi b,377_8
+	lsh a,8
+	iori b,(a)
+
+	dpb b,c
+	idpb b,c
+	idpb b,c
+	idpb b,c
+
+	movei a,1
+	.sleep a,
+
+	fadr d,[0.008]
+	caml d,[6.283185307179586]
+	 move d,[0.0]
+	jrst loop
+
+	.logout 1,
+
+ifn 1,[
+COS:    FADR A,[1.57079632679]
+SIN:    MOVM T,A
+        CAMG T,[.00017]
+         POPJ P,
+        FDVRI A,(-3.0)
+        PUSHJ P,SIN
+        FMPR T,T
+        FSC T,2
+        FADRI T,(-3.0)
+        FMPRB A,T
+        POPJ P,
+]
+
+ifn 0,[
+cos:	fadr a,sc1
+sin:	camg a,sc9
+	 camge a,[-.000211431983]
+	  jrst .+2
+	   popj p,
+	fdvr a,sc1
+	push p,a
+	push p,b
+	muli a,400
+	tsc a,a
+	ash b,-243(a)
+	movns a,8
+	andcmi a,1
+	tlc a,232000
+	fad a,a
+	fadrb a,-1(p)
+	trne b,2
+	movns a,-1(p)
+	fmp a,a
+	move b,sc9
+	fmp b,a
+	fad b,sc7
+	fmp b,a
+	fad b,sc5
+	fmp b,a
+	fad b,sc3
+	fmp a,b
+	fadr a,sc1
+	fmprm a,-1(p)
+	pop p,b
+	pop p,a
+	popj p,
+
+sc1:	1.5707963267
+sc3:	-0.64596371106
+sc5:	0.07968967928
+sc7:	-0.00467376557
+sc9:	0.00015148419
+]
+
+dlist:	.byte 18.
+	point+17		;Initially parameter mode, go to point mode
+	dstart 512.,512.
+	draw 0,176
+	draw 0,176
+	draw 0,176
+	draw 0,176
+	escape			;Escape to parameter mode
+	dstop
+	.byte
+dlen==.-dlist
+
+end go
+
+; Local Modes:
+; Compile Command: :midas lars; ts hand_hand >
+; End:
