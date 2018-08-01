@@ -63,6 +63,7 @@ foreach drwfn $argv {
     expect -ex "FILENAME?"
     send "$itsfn\r"
 
+    set bad 0
     while 1 {
         expect {
             #   LIBRARY F;BODIES DRW, ILLEGAL PPN.
@@ -79,11 +80,25 @@ foreach drwfn $argv {
             -re "OLD PIN ID (.*)=" {
                 send "$expect_out(1,string)\r"
             }
+            # INPUT ERROR.
+            # SHALL I CLOSE THE FILE AND RETURN(Y OR NO)?
+            -ex "SHALL I CLOSE THE FILE AND RETURN(Y OR NO)?" {
+                set bad 1
+                break
+            }
             -ex "*" {
                 # Success!
                 break
             }
         }
+    }
+    if $bad {
+        send_user "\n=== SUDS failed for $drwfn ===\n"
+        send "\032"
+        expect -ex ")"
+        send ":kill\r"
+        expect -ex "*"
+        continue
     }
 
     send "\006w"
