@@ -1,0 +1,133 @@
+#!/usr/bin/expect --
+# Convert DRW files (in "evacuate" format) to PNGs, using an ITS machine.
+
+# An ITS machine, reachable over telnet and FTP.
+set machine "dd"
+
+# ITS's FTP server doesn't support very many commands.
+# And it does something when closing the data connection that lftp
+# doesn't like very much...
+set lftpopts "set ftp:passive-mode false"
+append lftpopts ";set ftp:ssl-allow false"
+append lftpopts ";set ftp:use-feat false"
+append lftpopts ";set ftp:use-mdtm false"
+append lftpopts ";set ftp:use-size false"
+append lftpopts ";set ftp:use-site-utime false"
+append lftpopts ";set ftp:use-site-utime2 false"
+append lftpopts ";debug"
+
+send_user "\n=== Logging in ===\n"
+spawn telnet $machine
+expect "Fair Share = *%"
+send ":login drwpng\r"
+expect {
+    "Detached Tree-- " {
+        send " "
+        sleep 2
+        send "\032"
+        sleep 2
+        send ":massacre\r"
+        send ":vk\r"
+    }
+    "To see system"
+}
+expect "\r"
+send ":vk\r"
+expect -ex "*"
+send ":cwd .temp.\r"
+expect -ex "*"
+
+foreach drwfn $argv {
+    set itsfn [string map {"." " "} [file tail $drwfn]]
+
+    set pngfn "$drwfn.png"
+    if [file exists $pngfn] {
+        send_user "\n=== $drwfn already converted ===\n"
+        continue
+    }
+
+    send_user "\n=== Uploading $drwfn as $itsfn ===\n"
+    set tmpfn "/tmp/drwpng.tmp"
+    system "wfconv -uh <$drwfn >$tmpfn"
+    system "lftp drwpng:@$machine -e '$lftpopts; put -E $tmpfn -o \".temp.;$itsfn\"; quit'"
+
+    if [string equal $itsfn "bodies drw"] {
+        send_user "\n=== This is a bodies file, not converting ===\n"
+        continue
+    }
+
+    send_user "\n=== Running SUDS ===\n"
+    send ":d\r"
+    expect -ex "*"
+    send "\003i"
+    expect -ex "FILENAME?"
+    send "$itsfn\r"
+
+    while 1 {
+        expect {
+            #   LIBRARY F;BODIES DRW, ILLEGAL PPN.
+            # LIKE TO TRY ANOTHER LIBRARY FILENAME?
+            -re "LIBRARY .*;(.*), ILLEGAL.*FILENAME\?" {
+                # Hope we've uploaded it as a bodies file.
+                send "$expect_out(1,string)\r"
+            }
+            # SHALL I REPLACE "H106"  WITH "H106" .TEMP.;BODIES DRW?
+            -re "SHALL I REPLACE.*\?" {
+                send "y\r"
+            }
+            # OLD PIN ID 15=
+            -re "OLD PIN ID (.*)=" {
+                send "$expect_out(1,string)\r"
+            }
+            -ex "*" {
+                # Success!
+                break
+            }
+        }
+    }
+
+    send "\006w"
+    expect -ex "PLOT FILENAME?"
+    send "drwpng plt\r"
+    expect -ex "*"
+    send "\032"
+    expect -ex ")"
+    send ":kill\r"
+    expect -ex "*"
+    send ":delete $itsfn\r"
+    expect -ex "*"
+
+    send_user "\n=== Running SCNV ===\n"
+    send ":scnv\r"
+    expect -ex "SCNV FINISHED"
+    expect -ex "*"
+    send ":kill\r"
+    expect -ex "*"
+
+    send_user "\n=== Running VERSA ===\n"
+    send ":versa 1 scn\r"
+    expect -ex "*"
+    send ":delete 1 scn\r"
+    expect -ex "*"
+    send ":delete harscn newest\r"
+    expect {
+        -ex "FILE NOT FOUND" {}
+        -ex "*" {}
+    }
+    send ":rename harscn >,harscn newest\r"
+    expect -ex "*"
+
+    send_user "\n=== Downloading image ===\n"
+    system "lftp drwpng:@$machine -e '$lftpopts; get -E \".temp.;harscn newest\" -o $tmpfn; quit'"
+    system "harscntopbm -Wbin $tmpfn | pnmflip -r180 | pnmtopng >$pngfn"
+}
+
+send_user "\n=== Logging out --\n"
+send ":massacre\r"
+expect -ex "*"
+send ":logout\r"
+expect "Console * Free."
+send "\035"
+expect "telnet> "
+send "quit\r"
+expect eof
