@@ -1,0 +1,15 @@
+#!/bin/sh -e
+cd $HOME/Code/its/harscn/new
+rm -f harscn.1
+lftp ats:@dd -e 'set ftp:passive-mode false; get -E ".temp.;harscn 1" -o "harscn.1"; quit'
+harscntopdf -Wbin -r90 harscn.1 1.pdf
+exit
+rm -f *.png *.pbm
+for x in harscn.1; do
+	harscntopbm -Wbin "$x" | pnmsplit - "$x.%d.pbm"
+#	rm "$x"
+done
+for x in *.pbm; do
+	pnmflip -r90 "$x" | pnmtopng >"$x.png"
+	rm "$x"
+done
