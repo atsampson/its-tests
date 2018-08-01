@@ -1,6 +1,11 @@
 #!/usr/bin/expect --
 # Convert DRW files (in "evacuate" format) to PNGs, using an ITS machine.
 
+# If 1: copy the file over, copy the result back, convert. Slow.
+# If 0: the files are already uploaded; giving the argument abcd/foo.drw
+# will convert ABCD; FOO DRW to ABCD; FOO HARSCN.
+set use_ftp 0
+
 # An ITS machine, reachable over telnet and FTP.
 set machine "dd"
 
@@ -34,24 +39,42 @@ expect {
 expect "\r"
 send ":vk\r"
 expect -ex "*"
-send ":cwd .temp.\r"
-expect -ex "*"
 
 foreach drwfn $argv {
     set itsfn [string map {"." " "} [file tail $drwfn]]
+    set itsscan [string map {".drw" " harscn"} [file tail $drwfn]]
+    if $use_ftp {
+        # Work in .TEMP.;.
+        set libdir ".temp."
+    } else {
+        # Assume the source files are there already.
+        set srcdir [file tail [file dirname $drwfn]]
+        set libdir $srcdir
+        set itsfn "$srcdir;$itsfn"
 
-    set pngfn "$drwfn.png"
-    if [file exists $pngfn] {
-        send_user "\n=== $drwfn already converted ===\n"
-        continue
+        # Copy HARSCN back to a new directory.
+        set outdir "x"
+        append outdir [string range $srcdir 1 end]
+        send ":print $outdir;..new. (udir)\r"
+        expect -ex "FILE NOT FOUND"
+        set itsscan "$outdir;$itsscan"
     }
 
-    send_user "\n=== Uploading $drwfn as $itsfn ===\n"
-    set tmpfn "/tmp/drwpng.tmp"
-    system "wfconv -uh <$drwfn >$tmpfn"
-    system "lftp drwpng:@$machine -e '$lftpopts; put -E $tmpfn -o \".temp.;$itsfn\"; quit'"
+    if $use_ftp {
+        set pngfn "$drwfn.png"
+        if [file exists $pngfn] {
+            send_user "\n=== $drwfn already converted ===\n"
+            continue
+        }
+
+        send_user "\n=== Uploading $drwfn as $itsfn ===\n"
+        set tmpfn "/tmp/drwpng.tmp"
+        system "wfconv -uh <$drwfn >$tmpfn"
+        system "lftp drwpng:@$machine -e '$lftpopts; put -E $tmpfn -o \".temp.;$itsfn\"; quit'"
+    }
 
     if [string equal $itsfn "bodies drw"] {
+# eclbod drw
         send_user "\n=== This is a bodies file, not converting ===\n"
         continue
     }
@@ -68,9 +91,9 @@ foreach drwfn $argv {
         expect {
             #   LIBRARY F;BODIES DRW, ILLEGAL PPN.
             # LIKE TO TRY ANOTHER LIBRARY FILENAME?
-            -re "LIBRARY .*;(.*), ILLEGAL.*FILENAME\?" {
-                # Hope we've uploaded it as a bodies file.
-                send "$expect_out(1,string)\r"
+            -re "LIBRARY .*;(.*), (ILLEGAL|FILE NOT).*FILENAME\?" {
+                # Try in the same directory as the source.
+                send "$libdir;$expect_out(1,string)\r"
             }
             # SHALL I REPLACE "H106"  WITH "H106" .TEMP.;BODIES DRW?
             -re "SHALL I REPLACE.*\?" {
@@ -103,16 +126,20 @@ foreach drwfn $argv {
 
     send "\006w"
     expect -ex "PLOT FILENAME?"
-    send "drwpng plt\r"
+    send ".temp.;drwpng plt\r"
     expect -ex "*"
     send "\032"
     expect -ex ")"
     send ":kill\r"
     expect -ex "*"
-    send ":delete $itsfn\r"
-    expect -ex "*"
+    if $use_ftp {
+        send ":delete $itsfn\r"
+        expect -ex "*"
+    }
 
     send_user "\n=== Running SCNV ===\n"
+    send ":cwd .temp.\r"
+    expect -ex "*"
     send ":scnv\r"
     expect -ex "SCNV FINISHED"
     expect -ex "*"
@@ -124,17 +151,24 @@ foreach drwfn $argv {
     expect -ex "*"
     send ":delete 1 scn\r"
     expect -ex "*"
-    send ":delete harscn newest\r"
-    expect {
-        -ex "FILE NOT FOUND" {}
-        -ex "*" {}
-    }
-    send ":rename harscn >,harscn newest\r"
-    expect -ex "*"
 
-    send_user "\n=== Downloading image ===\n"
-    system "lftp drwpng:@$machine -e '$lftpopts; get -E \".temp.;harscn newest\" -o $tmpfn; quit'"
-    system "harscntopbm -Wbin $tmpfn | pnmflip -r180 | pnmtopng >$pngfn"
+    if $use_ftp {
+        send_user "\n=== Downloading image ===\n"
+        send ":delete harscn newest\r"
+        expect {
+            -ex "FILE NOT FOUND" {}
+            -ex "*" {}
+        }
+        send ":rename harscn >,harscn newest\r"
+        expect -ex "*"
+        system "lftp drwpng:@$machine -e '$lftpopts; get -E \".temp.;harscn newest\" -o $tmpfn; quit'"
+        system "harscntopbm -Wbin $tmpfn | pnmflip -r180 | pnmtopng >$pngfn"
+    } else {
+        send ":copy harscn >,$itsscan\r"
+        expect -ex "*"
+        send ":delete harscn >\r"
+        expect -ex "*"
+    }
 }
 
 send_user "\n=== Logging out --\n"
