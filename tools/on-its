@@ -1,0 +1,51 @@
+#!/usr/bin/expect
+# Run a command on an ITS machine over telnet.
+# (Work in progress!)
+
+proc respond_load { r } {
+    expect -re {[\r\n][0-9]+\.? *[\r\n]}
+    send $r
+}
+
+spawn telnet dd
+expect "Fair Share = *%"
+send ":login ats\r"
+expect {
+	"Detached Tree-- " { send "\177"; expect "To see system" }
+	"To see system"
+}
+expect "\r"
+send_user "got newline\n"
+send ":vk\r"
+expect -ex "*"
+
+#send ":midas .temp._ats;xumm mid\r"
+
+send ":lisp\r"
+expect "LISP "
+expect "Alloc? "
+send "n\r"
+send_user "waiting for star\n"
+expect -ex "*"
+send_user "got star\n"
+
+#send "(load \"libmax;module\")"
+send {(progn (terpri) (princ "123456. "))}
+respond_load "(status date)"
+expect ")\r"
+send "(quit)"
+
+set timeout 5
+expect {
+	timeout { send "\032"; expect ")"; send ":kill\r" }
+	":KILL"
+}
+expect -ex "*"
+send ":massacre\r"
+expect -ex "*"
+send ":logout\r"
+expect "Console * Free."
+send "\035"
+expect "telnet> "
+send "quit\r"
+expect eof
