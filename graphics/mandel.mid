@@ -1,0 +1,149 @@
+; PDP-10 Mandelbrot set					*-MIDAS-*-
+; Copyright 2018 Adam Sampson <ats@offog.org>
+;
+; This program is free software; you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation, either version 3 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+title Mandelbrot set
+
+WIDTH==79.
+HEIGHT==24.
+
+LEFT==-2.0
+RIGHT==1.0
+TOP==1.125
+BOTTOM==-1.125
+
+MAXITER==100.
+
+PDLLEN==100
+
+t=0
+a=1
+b=2
+x=3
+y=4
+zx=5
+zy=6
+p=7
+
+tyo==1
+
+define float r			;convert r from int to float
+;	fltr r,r		;works on KI+
+	fsc r,233		;works on KA+
+termin
+
+begin:	move p,[-PDLLEN,,pdl]
+	.open tyo,[.uao,,'TTY]
+	 .lose
+
+	;xscale := (RIGHT - LEFT) / WIDTH
+	movei a,WIDTH
+	float a
+	move t,[RIGHT]
+	fsb t,[LEFT]
+	fdv t,a
+	movem t,xscale
+
+	;yscale := (BOTTOM - TOP) / HEIGHT
+	movei a,HEIGHT
+	float a
+	move t,[BOTTOM]
+	fsb t,[TOP]
+	fdv t,a
+	movem t,yscale
+
+	;for each pixel in the image...
+	move y,[-HEIGHT,,0]
+yloop:	move x,[-WIDTH,,0]
+xloop:	push p,x
+	push p,y
+
+	;cx := (x * xscale) + LEFT
+	hrrzs x
+	float x
+	fmpr x,xscale
+	fadr x,[LEFT]
+
+	;cy := (y * yscale) + TOP
+	hrrzs y
+	float y
+	fmpr y,yscale
+	fadr y,[TOP]
+
+	;z := 0
+	move zx,[0.0]
+	move zy,[0.0]
+
+	movei t,MAXITER
+	jrst middle	;no point in squaring first time as z == 0
+
+;inner loop - iterate (z := (z * z) + c) and see if z escapes.
+;FIXME can this be made small enough to run in the registers on the KA?
+;FIXME save p in memory, and use that for iteration count?
+loop:	move b,zx		;b := zx ** 2
+	fmpr b,zx
+	move a,zy		;a := zy ** 2
+	fmpr a,zy
+
+	;z := z * z
+	;-> zy' := ((zx + zy) ** 2) - (zx * zx) - (zy * zy)
+	fadr zy,zx
+
+	;we don't need zx any more now, so let's check...
+	;at loop, if (abs(z) >= 2.0) then this point is not in the set
+	move zx,a
+	fadr zx,b
+	fsbri zx,<<4.0>_-18.>
+	jumpge zx,notin
+
+	;continue with the zy' = ... calculation
+	fmpr zy,zy
+	fsbr zy,b
+	fsbr zy,a
+
+	;-> zx' := (zx * zx) - (zy * zy)
+	move zx,b
+	fsbr zx,a
+
+middle:	;z := z + c
+	;-> zx' := zx + cx, zy' := zy + cy
+	fadr zx,x
+	fadr zy,y
+
+	sojg t,loop		;have we run out of iterations?
+
+	movei t,"#
+	skipa
+notin:	 movei t,40
+	.iot tyo,t		;output result
+
+	pop p,y
+	pop p,x
+	aobjn x,xloop
+
+	movei t,15
+	.iot tyo,t
+	movei t,12
+	.iot tyo,t
+
+	aobjn y,yloop
+
+	.break 16,40000		;symbol for this?
+
+pdl:	block 20
+yscale:	block 1
+xscale:	block 1
+
+end begin
