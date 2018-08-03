@@ -105,7 +105,7 @@ loop:	move b,zx		;b := zx ** 2
 	;at loop, if (abs(z) >= 2.0) then this point is not in the set
 	move zx,a
 	fadr zx,b
-	fsbri zx,<<4.0>_-18.>
+	fsbri zx,(4.0)
 	jumpge zx,notin
 
 	;continue with the zy' = ... calculation
