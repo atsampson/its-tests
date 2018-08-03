@@ -101,17 +101,17 @@ loop:	move b,zx		;b := zx ** 2
 	;-> zy' := ((zx + zy) ** 2) - (zx * zx) - (zy * zy)
 	fadr zy,zx
 
-	;we don't need zx any more now, so let's check...
-	;at loop, if (abs(z) >= 2.0) then this point is not in the set
+	;we don't need the old zx for now, so zx := a + b = abs(z)
 	move zx,a
 	fadr zx,b
-	fsbri zx,(4.0)
-	jumpge zx,notin
 
 	;continue with the zy' = ... calculation
 	fmpr zy,zy
-	fsbr zy,b
-	fsbr zy,a
+	fsbr zy,zx
+
+	;at loop, if (abs(z) >= 2.0) then this point is not in the set
+	fsbri zx,(4.0)
+	jumpge zx,notin
 
 	;-> zx' := (zx * zx) - (zy * zy)
 	move zx,b
