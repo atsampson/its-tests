@@ -1,0 +1,33 @@
+#!/bin/sh -e
+# Build ITS, logging the output.
+
+# Check we're in the right place.
+[ -e build/build.tcl ]
+
+force_master=false
+clean_tools=false
+
+if $force_master; then
+	git fetch
+	git checkout -B origin/master master
+	git submodule sync
+	git submodule update
+fi
+
+make clean
+if $clean_tools; then
+	for d in tools/*; do
+		make -C $d clean || true
+	done
+fi
+rm -f src/system/config.*
+
+if ts --version 2>&1 | grep -q 'usage: ts'; then
+	# We have moreutils ts (not the ts task spooler, or nothing).
+	# Use it to timestamp lines.
+	stamp=ts
+else
+	stamp=cat
+fi
+
+make "$@" </dev/null 2>&1 | $stamp | tee log.`hostname`.`date +%Y%m%d-%H%M`
