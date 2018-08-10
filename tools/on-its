@@ -7,9 +7,21 @@ proc respond_load { r } {
     send $r
 }
 
-spawn telnet dd
-expect "Fair Share = *%"
-send ":login ats\r"
+proc ummm {} {
+    uplevel #0 {spawn telnet dd}
+}
+
+proc resp { x y } {
+    expect $x
+    send $y
+}
+
+set timeout 100
+
+ummm
+expect_after timeout abort
+
+resp "Fair Share = *%" ":login ats\r"
 expect {
 	"Detached Tree-- " { send "\177"; expect "To see system" }
 	"To see system"
@@ -33,6 +45,11 @@ send_user "got star\n"
 send {(progn (terpri) (princ "123456. "))}
 respond_load "(status date)"
 expect ")\r"
+send_user "now a list\n"
+send {(princ '(1 2 3 4 5))}
+send_user "waiting\n"
+expect -re {\) *\r}
+send_user "got it\n"
 send "(quit)"
 
 set timeout 5
