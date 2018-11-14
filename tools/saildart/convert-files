@@ -1,0 +1,64 @@
+#!/usr/bin/python
+
+import glob
+import subprocess
+import os
+import re
+import time
+
+from offog import die
+
+line_re = re.compile(r'^<li>(....-..-.. ..:..) <a href="/([^"]*)"')
+fn_re = re.compile(r'^(.*)\[(.*),(.*)\]([0-9]*)$')
+
+# Assuming WAITS timestamps are in PST (are they?).
+os.environ["TZ"] = "US/Pacific"
+time.tzset()
+
+made_dirs = set()
+
+def apply_dates(f):
+    for l in f.readlines():
+        if not l.startswith("<li>"):
+            continue
+
+        m = line_re.match(l)
+        if m is None:
+            die("line_re didn't match: ", l)
+
+        time_str, fn = m.group(1, 2)
+        if time_str == "0000-00-00 00:00":
+            # Not right, but at least it's a special value...
+            orig_time = 0
+        else:
+            orig_time = time.mktime(time.strptime(time_str, "%Y-%m-%d %H:%M"))
+
+        in_fn = "www.saildart.org/" + fn + "_octal"
+        if not os.path.exists(in_fn):
+            die("missing file: ", in_fn)
+
+        m = fn_re.match(fn.lower())
+        if m is None:
+            die("fn_re didn't match: ", fn)
+        out_fn = "converted/%s/%s/%s_%s" % m.group(3, 2, 1, 4)
+        if out_fn.endswith("_"):
+            out_fn = out_fn[:-1]
+
+        if not os.path.exists(out_fn):
+            print in_fn, "->", out_fn, "@", orig_time
+
+            dn = os.path.dirname(out_fn)
+            if not dn in made_dirs:
+                os.makedirs(dn)
+                made_dirs.add(dn)
+
+            with open(in_fn, "r") as fi:
+                with open(out_fn, "w") as fo:
+                    subprocess.check_call("./saildart", stdin=fi, stdout=fo)
+
+            os.utime(out_fn, (orig_time, orig_time))
+            os.chmod(out_fn, 0o444)
+
+for fn in glob.glob("www.saildart.org/*/toc1.html"):
+    with open(fn) as f:
+        apply_dates(f)
