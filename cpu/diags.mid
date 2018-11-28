@@ -1,0 +1,693 @@
+title diags
+
+a==1
+t==4
+tt==5
+p==17
+
+loc 40
+	1
+	jsr uuoh
+
+loc 100
+
+go:	move p,[-100,,pdl]
+
+	;1		;LUUO
+
+	move t,mem	;MOVE
+	caie t,42
+	 .lose
+	movei t,41	;MOVEI
+	caie t,41
+	 .lose
+	movem t,mem	;MOVEM
+	move a,mem
+	caie a,41
+	 .lose
+	movei a,42
+	movem a,mem
+	moves t,mem	;MOVES
+	move a,mem
+	caie a,42
+	 .lose
+	caie t,42
+	 .lose
+	movei a,41
+	movem a,mem
+	moves mem	;MOVES
+	move a,mem
+	caie a,41
+	 .lose
+	caie t,42
+	 .lose
+
+	movsi t,42
+	came t,[42,,0]
+	 .lose
+	movs t,[42,,0]
+	caie t,42
+	 .lose
+	movni t,42
+	came t,[-42]
+	 .lose
+	movn t,[-42]
+	caie t,42
+	 .lose
+	movmi t,42
+	caie t,42
+	 .lose
+	movm t,[-42]
+	caie t,42
+	 .lose
+
+	;IMUL
+	;MUL
+
+	movei t,42
+	ash t,1		;ASH
+	caie t,42_1
+	 .lose
+	ash t,-2	;ASH
+	caie t,42_-1
+	 .lose
+	movni t,42
+	ash t,1		;ASH
+	came t,[-42_1]
+	 .lose
+	ash t,-2	;ASH
+	came t,[-42_-1]
+	 .lose
+
+	;ROT
+	;LSH
+	;JFFO
+	;ASHC
+	;ROTC
+	;LSHC
+
+	movei t,42
+	movei a,123
+	movem a,mem
+	exch t,mem	;EXCH
+	caie t,123
+	 .lose
+	move a,mem
+	caie a,42
+	 .lose
+
+	;BLT
+	;AOBJP
+
+	move t,[-2,,0]
+	aobjn t,.+2	;AOBJN
+	.lose
+	came t,[-1,,1]
+	 .lose
+	aobjn t,[.lose]	;AOBJN
+	came t,[0,,2]
+	 .lose
+
+	;JRST
+	;JFCL
+	;XCT
+
+	pushj p,[popj p,]	;PUSHJ & POPJ
+
+	push p,[123]	;PUSH
+	move a,(p)
+	caie a,123
+	 .lose
+	came p,[-77,,pdl+1]
+	 .lose
+
+	pop p,t		;POP
+	caie t,123
+	 .lose
+	came p,[-100,,pdl]
+	 .lose
+
+	jsr foo		;JSR
+
+	jsp t,[jrst (t)]	;JSP
+
+	;JSA
+	;JRA
+
+define talu i1,i2,op,o1,o2
+	move t,[i1]
+	move a,[i2]
+	movem a,mem
+	op
+	came t,[o1]
+	 .lose
+	move a,mem
+	came a,[o2]
+	 .lose
+termin
+	;talu 42,123,[add t,mem],42+123,123
+	;talu 42,123,[addi t,123],42+123,123
+	;talu 42,123,[addm t,mem],42+123,123
+	;talu 42,123,[addb t,mem],42+123,123
+
+	movei t,42
+	movei a,123
+	movem a,mem
+	add t,mem	;ADD
+	caie t,42+123
+	 .lose
+	move a,mem
+	caie a,123
+	 .lose
+	movei t,42
+	addi t,123	;ADDI
+	caie t,42+123
+	 .lose
+	move a,mem
+	caie a,123
+	 .lose
+	movei t,42
+	movei a,123
+	movem a,mem
+	addm t,mem	;ADDM
+	caie t,42
+	 .lose
+	move a,mem
+	caie a,42+123
+	 .lose
+	movei t,42
+	movei a,123
+	movem a,mem
+	addb t,mem	;ADDB
+	caie t,42+123
+	 .lose
+	move a,mem
+	caie a,42+123
+	 .lose
+
+	;SUB
+
+	movei t,42
+	cai t,42	;CAI
+	jrst .+2
+	.lose
+	cail t,41	;CAIL
+	 jrst .+2
+	.lose
+	cail t,42	;CAIL
+	 jrst .+2
+	.lose
+	cail t,43	;CAIL
+	 .lose
+	caie t,41	;CAIE
+	 jrst .+2
+	.lose
+	caie t,42	;CAIE
+	 .lose
+	caie t,43	;CAIE
+	 jrst .+2
+	.lose
+	caile t,41	;CAILE
+	 jrst .+2
+	.lose
+	caile t,42	;CAILE
+	 .lose
+	caile t,43	;CAILE
+	 .lose
+	caia t,41	;CAIA
+	 .lose
+	caia t,42	;CAIA
+	 .lose
+	caia t,43	;CAIA
+	 .lose
+	caige t,41	;CAIGE
+	 .lose
+	caige t,42	;CAIGE
+	 .lose
+	caige t,43	;CAIGE
+	 jrst .+2
+	.lose
+	cain t,41	;CAIN
+	 .lose
+	cain t,42	;CAIN
+	 jrst .+2
+	.lose
+	cain t,43	;CAIN
+	 .lose
+	caig t,41	;CAIG
+	 .lose
+	caig t,42	;CAIG
+	 jrst .+2
+	.lose
+	caig t,43	;CAIG
+	 jrst .+2
+	.lose
+
+	move t,[12345]
+	cam t,[12345]	;CAM
+	jrst .+2
+	.lose
+	caml t,[12344]	;CAML
+	 jrst .+2
+	.lose
+	caml t,[12345]	;CAML
+	 jrst .+2
+	.lose
+	caml t,[12346]	;CAML
+	 .lose
+	came t,[12344]	;CAME
+	 jrst .+2
+	.lose
+	came t,[12345]	;CAME
+	 .lose
+	came t,[12346]	;CAME
+	 jrst .+2
+	.lose
+	camle t,[12344]	;CAMLE
+	 jrst .+2
+	.lose
+	camle t,[12345]	;CAMLE
+	 .lose
+	camle t,[12346]	;CAMLE
+	 .lose
+	cama t,[12344]	;CAMA
+	 .lose
+	cama t,[12345]	;CAMA
+	 .lose
+	cama t,[12346]	;CAMA
+	 .lose
+	camge t,[12344]	;CAMGE
+	 .lose
+	camge t,[12345]	;CAMGE
+	 .lose
+	camge t,[12346]	;CAMGE
+	 jrst .+2
+	.lose
+	camn t,[12344]	;CAMN
+	 .lose
+	camn t,[12345]	;CAMN
+	 jrst .+2
+	.lose
+	camn t,[12346]	;CAMN
+	 .lose
+	camg t,[12344]	;CAMG
+	 .lose
+	camg t,[12345]	;CAMG
+	 jrst .+2
+	.lose
+	camg t,[12346]	;CAMG
+	 jrst .+2
+	.lose
+
+	jump [.lose]	;JUMP
+	movei t,1
+	jumpl t,[.lose]	;JUMPL
+	movei t,0
+	jumpl t,[.lose]	;JUMPL
+	movni t,1
+	jumpl t,.+2	;JUMPL
+	.lose
+	movei t,1
+	jumpe t,[.lose]	;JUMPE
+	movei t,0
+	jumpe t,.+2	;JUMPE
+	.lose
+	movni t,1
+	jumpe t,[.lose]	;JUMPE
+	movei t,1
+	jumple t,[.lose];JUMPLE
+	movei t,0
+	jumple t,.+2	;JUMPLE
+	.lose
+	movni t,1
+	jumple t,.+2	;JUMPLE
+	.lose
+	movei t,1
+	jumpa t,.+2	;JUMPA
+	.lose
+	movei t,0
+	jumpa t,.+2	;JUMPA
+	.lose
+	movni t,1
+	jumpa t,.+2	;JUMPA
+	.lose
+	movei t,1
+	jumpge t,.+2	;JUMPGE
+	.lose
+	movei t,0
+	jumpge t,.+2	;JUMPGE
+	.lose
+	movni t,1
+	jumpge t,[.lose];JUMPGE
+	movei t,1
+	jumpn t,.+2	;JUMPN
+	.lose
+	movei t,0
+	jumpn t,[.lose]	;JUMPN
+	movni t,1
+	jumpn t,.+2	;JUMPN
+	.lose
+	movei t,1
+	jumpg t,.+2	;JUMPG
+	.lose
+	movei t,0
+	jumpg t,[.lose]	;JUMPG
+	movni t,1
+	jumpg t,[.lose]	;JUMPG
+
+	skip mem	;SKIP
+	jrst .+2 ? .lose
+	skipl [1]	;SKIPL
+	jrst .+2 ? .lose
+	skipl [0]	;SKIPL
+	jrst .+2 ? .lose
+	skipl [-1]	;SKIPL
+	.lose
+	skipe [1]	;SKIPE
+	jrst .+2 ? .lose
+	skipe [0]	;SKIPE
+	.lose
+	skipe [-1]	;SKIPE
+	jrst .+2 ? .lose
+	skiple [1]	;SKIPLE
+	jrst .+2 ? .lose
+	skiple [0]	;SKIPLE
+	.lose
+	skiple [-1]	;SKIPLE
+	.lose
+	skipa [1]	;SKIPA
+	.lose
+	skipa [0]	;SKIPA
+	.lose
+	skipa [-1]	;SKIPA
+	.lose
+	skipge [1]	;SKIPGE
+	.lose
+	skipge [0]	;SKIPGE
+	.lose
+	skipge [-1]	;SKIPGE
+	jrst .+2 ? .lose
+	skipn [1]	;SKIPN
+	.lose
+	skipn [0]	;SKIPN
+	jrst .+2 ? .lose
+	skipn [-1]	;SKIPN
+	.lose
+	skipg [1]	;SKIPG
+	.lose
+	skipg [0]	;SKIPG
+	jrst .+2 ? .lose
+	skipg [-1]	;SKIPG
+	jrst .+2 ? .lose
+
+	move t,[-2]
+	aojn t,.+2	;AOJN
+	.lose
+	came t,[-1]
+	 .lose
+	aojn t,[.lose]	;AOJN
+	came t,[0]
+	 .lose
+
+	movei t,123
+	move a,[-3]
+	movem a,mem
+	aos mem		;AOS
+	caie t,123
+	 .lose
+	move a,mem
+	came a,[-2]
+	 .lose
+	aose t,mem	;AOSE
+	came t,[-1]
+	 .lose
+	aosge mem	;AOSGE
+	 .lose
+	came t,[-1]
+	 .lose
+
+	move t,[1]
+	sojge t,.+2	;SOJGE
+	.lose
+	came t,[0]
+	 .lose
+	sojge t,[.lose]	;SOJGE
+	came t,[-1]
+	 .lose
+
+	movei t,123
+	move a,[3]
+	movem a,mem
+	sos mem		;SOS
+	caie t,123
+	 .lose
+	move a,mem
+	came a,[2]
+	 .lose
+	sose t,mem	;SOSE
+	caie t,1
+	 .lose
+	sosge mem	;SOSGE
+	 .lose
+	caie t,1
+	 .lose
+
+	movei t,42
+	movem t,mem
+	setz t,mem	;SETZ
+	caie t,0
+	 .lose
+	move t,mem
+	caie t,42
+	 .lose
+	movei t,42
+	setzi t,mem	;SETZI
+	caie t,0
+	 .lose
+	move t,mem
+	caie t,42
+	 .lose
+	movei t,42
+	setzm t,mem	;SETZM
+	caie t,42
+	 .lose
+	move t,mem
+	caie t,0
+	 .lose
+	movei t,42
+	movem t,mem
+	setzb t,mem	;SETZB
+	caie t,0
+	 .lose
+	move t,mem
+	caie t,0
+	 .lose
+
+	movei t,42
+	movei tt,123
+	setz t,tt	;SETZ
+	caie t,0
+	 .lose
+	movei t,42
+	movei tt,123
+	and t,tt	;AND
+	caie t,42&123
+	 .lose
+	movei t,42
+	movei tt,123
+	andca t,tt	;ANDCA
+	came t,[<#42>&123]
+	 .lose
+	movei t,42
+	movei tt,123
+	setm t,tt	;SETM
+	caie t,123
+	 .lose
+	movei t,42
+	movei tt,123
+	andcm t,tt	;ANDCM
+	came t,[42&<#123>]
+	 .lose
+	movei t,42
+	movei tt,123
+	seta t,tt	;SETA
+	caie t,42
+	 .lose
+	movei t,42
+	movei tt,123
+	xor t,tt	;XOR
+	caie t,42#123
+	 .lose
+	movei t,42
+	movei tt,123
+	ior t,tt	;IOR
+	caie t,42\123
+	 .lose
+	movei t,42
+	movei tt,123
+	andcb t,tt	;ANDCB
+	came t,[<#42>&<#123>]
+	 .lose
+	movei t,42
+	movei tt,123
+	eqv t,tt	;EQV
+	came t,[#<42#123>]
+	 .lose
+	movei t,42
+	movei tt,123
+	setca t,tt	;SETCA
+	came t,[#42]
+	 .lose
+	movei t,42
+	movei tt,123
+	orca t,tt	;ORCA
+	came t,[<#42>\123]
+	 .lose
+	movei t,42
+	movei tt,123
+	setcm t,tt	;SETCM
+	came t,[#123]
+	 .lose
+	movei t,42
+	movei tt,123
+	orcm t,tt	;ORCM
+	came t,[42\<#123>]
+	 .lose
+	movei t,42
+	movei tt,123
+	orcb t,tt	;ORCB
+	came t,[<#42>\<#123>]
+	 .lose
+	movei t,42
+	movei tt,123
+	seto t,tt	;SETO
+	came t,[-1]
+	 .lose
+
+define thalf op,i1,o1,o2
+	move t,[1,,2]
+	move tt,i1
+	op
+	came t,[o1]
+	 .lose
+	came tt,o2
+	 .lose
+termin
+
+	thalf [hll t,tt][[3,,4]][3,,2][[3,,4]]		;HLL
+	thalf [hlli t,123][[3,,4]][0,,2][[3,,4]]	;HLLI
+	thalf [hllm t,tt][[3,,4]][1,,2][[1,,4]]		;HLLM
+	thalf [hlls t,tt][[3,,4]][3,,4][[3,,4]]		;HLLS
+
+	thalf [hrl t,tt][[3,,4]][4,,2][[3,,4]]		;HRL
+	thalf [hrli t,123][[3,,4]][123,,2][[3,,4]]	;HRLI
+	thalf [hrlm t,tt][[3,,4]][1,,2][[2,,4]]		;HRLM
+	thalf [hrls t,tt][[3,,4]][4,,4][[4,,4]]		;HRLS
+
+	thalf [hlr t,tt][[3,,4]][1,,3][[3,,4]]		;HLR
+	thalf [hlri t,123][[3,,4]][1,,0][[3,,4]]	;HLRI
+	thalf [hlrm t,tt][[3,,4]][1,,2][[3,,1]]		;HLRM
+	thalf [hlrs t,tt][[3,,4]][3,,3][[3,,3]]		;HLRS
+
+	thalf [hrr t,tt][[3,,4]][1,,4][[3,,4]]		;HRR
+	thalf [hrri t,123][[3,,4]][1,,123][[3,,4]]	;HRRI
+	thalf [hrrm t,tt][[3,,4]][1,,2][[3,,2]]		;HRRM
+	thalf [hrrs t,tt][[3,,4]][3,,4][[3,,4]]		;HRRS
+
+	thalf [hllz t,tt][[3,,4]][3,,0][[3,,4]]		;HLLZ
+	thalf [hllzi t,123][[3,,4]][0,,0][[3,,4]]	;HLLZI
+	thalf [hllzm t,tt][[3,,4]][1,,2][[1,,0]]	;HLLZM
+	thalf [hllzs t,tt][[3,,4]][3,,0][[3,,0]]	;HLLZS
+
+	thalf [hrlz t,tt][[3,,4]][4,,0][[3,,4]]		;HRLZ
+	thalf [hrlzi t,123][[3,,4]][123,,0][[3,,4]]	;HRLZM
+	thalf [hrlzm t,tt][[3,,4]][1,,2][[2,,0]]	;HRLZM
+	thalf [hrlzs t,tt][[3,,4]][4,,0][[4,,0]]	;HRLZS
+
+	thalf [hlrz t,tt][[3,,4]][0,,3][[3,,4]]		;HLRZ
+	thalf [hlrzi t,123][[3,,4]][0,,0][[3,,4]]	;HLRZI
+	thalf [hlrzm t,tt][[3,,4]][1,,2][[0,,1]]	;HLRZM
+	thalf [hlrzs t,tt][[3,,4]][0,,3][[0,,3]]	;HLRZS
+
+	thalf [hrrz t,tt][[3,,4]][0,,4][[3,,4]]		;HRRZ
+	thalf [hrrzi t,123][[3,,4]][0,,123][[3,,4]]	;HRRZI
+	thalf [hrrzm t,tt][[3,,4]][1,,2][[0,,2]]	;HRRZM
+	thalf [hrrzs t,tt][[3,,4]][0,,4][[0,,4]]	;HRRZS
+
+	thalf [hllo t,tt][[3,,4]][3,,-1][[3,,4]]	;HLLO
+	thalf [hlloi t,123][[3,,4]][0,,-1][[3,,4]]	;HLLOI
+	thalf [hllom t,tt][[3,,4]][1,,2][[1,,-1]]	;HLLOM
+	thalf [hllos t,tt][[3,,4]][3,,-1][[3,,-1]]	;HLLOZ
+
+	thalf [hrlo t,tt][[3,,4]][4,,-1][[3,,4]]	;HRLO
+	thalf [hrloi t,123][[3,,4]][123,,-1][[3,,4]]	;HRLOI
+	thalf [hrlom t,tt][[3,,4]][1,,2][[2,,-1]]	;HRLOM
+	thalf [hrlos t,tt][[3,,4]][4,,-1][[4,,-1]]	;HRLOS
+
+	thalf [hlro t,tt][[3,,4]][-1,,3][[3,,4]]	;HLRO
+	thalf [hlroi t,123][[3,,4]][-1,,0][[3,,4]]	;HLROI
+	thalf [hlrom t,tt][[3,,4]][1,,2][[-1,,1]]	;HLROM
+	thalf [hlros t,tt][[3,,4]][-1,,3][[-1,,3]]	;HLROS
+
+	thalf [hrro t,tt][[3,,4]][-1,,4][[3,,4]]	;HRRO
+	thalf [hrroi t,123][[3,,4]][-1,,123][[3,,4]]	;HRROI
+	thalf [hrrom t,tt][[3,,4]][1,,2][[-1,,2]]	;HRROM
+	thalf [hrros t,tt][[3,,4]][-1,,4][[-1,,4]]	;HRROS
+
+	thalf [hlle t,tt][[3,,4]][3,,0][[3,,4]]		;HLLE
+	thalf [hllei t,123][[3,,4]][0,,0][[3,,4]]	;HLLEI
+	thalf [hllem t,tt][[3,,4]][1,,2][[1,,0]]	;HLLEM
+	thalf [hlles t,tt][[3,,4]][3,,0][[3,,0]]	;HLLES
+
+	thalf [hrle t,tt][[3,,4]][4,,0][[3,,4]]		;HRLE
+	thalf [hrlei t,123][[3,,4]][123,,0][[3,,4]]	;HRLEI
+	thalf [hrlem t,tt][[3,,4]][1,,2][[2,,0]]	;HRLEM
+	thalf [hrles t,tt][[3,,4]][4,,0][[4,,0]]	;HRLES
+
+	thalf [hlre t,tt][[3,,4]][0,,3][[3,,4]]		;HLRE
+	thalf [hlrei t,123][[3,,4]][0,,0][[3,,4]]	;HLREI
+	thalf [hlrem t,tt][[3,,4]][1,,2][[0,,1]]	;HLREM
+	thalf [hlres t,tt][[3,,4]][0,,3][[0,,3]]	;HLRES
+
+	thalf [hrre t,tt][[3,,4]][0,,4][[3,,4]]		;HRRE
+	thalf [hrrei t,123][[3,,4]][0,,123][[3,,4]]	;HRREI
+	thalf [hrrem t,tt][[3,,4]][1,,2][[0,,2]]	;HRREM
+	thalf [hrres t,tt][[3,,4]][0,,4][[0,,4]]	;HRRES
+
+	thalf [hlle t,tt][[-3,,4]][-3,,-1][[-3,,4]]	;HLLE
+	thalf [hllei t,123][[-3,,4]][0,,0][[-3,,4]]	;HLLEI
+	thalf [hllem t,tt][[-3,,4]][1,,2][[1,,0]]	;HLLEM
+	thalf [hlles t,tt][[-3,,4]][-3,,-1][[-3,,-1]]	;HLLES
+
+	thalf [hrle t,tt][[3,,-4]][-4,,-1][[3,,-4]]	;HRLE
+	thalf [hrlei t,123][[3,,-4]][123,,0][[3,,-4]]	;HRLEI
+	thalf [hrlem t,tt][[3,,-4]][1,,2][[2,,0]]	;HRLEM
+	thalf [hrles t,tt][[3,,-4]][-4,,-1][[-4,,-1]]	;HRLES
+
+	thalf [hlre t,tt][[-3,,4]][-1,,-3][[-3,,4]]	;HLRE
+	thalf [hlrei t,123][[-3,,4]][0,,0][[-3,,4]]	;HLREI
+	thalf [hlrem t,tt][[-3,,4]][1,,2][[0,,1]]	;HLREM
+	thalf [hlres t,tt][[-3,,4]][-1,,-3][[-1,,-3]]	;HLRES
+
+	thalf [hrre t,tt][[3,,-4]][-1,,-4][[3,,-4]]	;HRRE
+	thalf [hrrei t,123][[3,,-4]][0,,123][[3,,-4]]	;HRREI
+	thalf [hrrem t,tt][[3,,-4]][1,,2][[0,,2]]	;HRREM
+	thalf [hrres t,tt][[3,,-4]][-1,,-4][[-1,,-4]]	;HRRES
+
+	.logout 1,
+
+foo:	0
+	jrst @foo
+
+uuoh:	0
+	jrst @uuoh
+
+pdl:	1
+	1
+	1
+	1
+	block 100
+
+mem:	42
+
+end go
