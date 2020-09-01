@@ -1,0 +1,263 @@
+#!/usr/bin/python
+# Explore the contents of a Muddle SAVE file.
+# Adam Sampson <ats@offog.org>
+
+from __future__ import print_function
+
+from dis10 import *
+
+import sys
+
+# Type codes - these seem to be the same for 54/56/105
+type_codes = {
+    0o0: "TLOSE",
+    0o1: "TFIX",
+    0o2: "TFLOAT",
+    0o3: "TCHRS",
+    0o4: "TENTRY",
+    0o5: "TSUBR",
+    0o6: "TFSUBR",
+    0o7: "TUNBOU",
+    0o10: "TBIND",
+    0o11: "TILLEG",
+    0o12: "TTIME",
+    0o13: "TLIST",
+    0o14: "TFORM",
+    0o15: "TSEG",
+    0o16: "TEXPR",
+    0o17: "TFUNAR",
+    0o20: "TLOCL",
+    0o21: "TFALSE",
+    0o22: "TDEFER",
+    0o23: "TUVEC",
+    0o24: "TOBLS",
+    0o25: "TVEC",
+    0o26: "TCHAN",
+    0o27: "TLOCV",
+    0o30: "TTVP",
+    0o31: "TBVL",
+    0o32: "TTAG",
+    0o33: "TPVP",
+    0o34: "TLOCI",
+    0o35: "TTP",
+    0o36: "TSP",
+    0o40: "TMACRO",
+    0o41: "TPDL",
+    0o42: "TARGS",
+    0o43: "TAB",
+    0o44: "TTB",
+    0o45: "TFRAME",
+    0o46: "TCHSTR",
+    0o47: "TATOM",
+    0o50: "TLOCD",
+    0o51: "TBYTE",
+    0o52: "TENV",
+    0o53: "TACT",
+    0o54: "TASOC",
+    0o55: "TLOCU",
+    0o56: "TLOCS",
+    0o57: "TLOCA",
+    0o60: "TCBLK",
+    0o61: "TTMPLT",
+    0o62: "TLOCT",
+    0o63: "TLOCR",
+    0o64: "TINFO",
+    0o65: "TQRSUB",
+    0o66: "TQENT",
+    0o67: "TRDTB",
+    0o70: "TWORD",
+    0o71: "TRSUBR",
+    0o72: "TCODE",
+    0o73: "TSATC",
+    0o74: "TBITS",
+    0o75: "TSTORA",
+    0o76: "TPICTU",
+    0o77: "TSKIP",
+    0o100: "TLINK",
+    0o101: "TINTH",
+    0o102: "THAND",
+    0o103: "TLOCN",
+    0o104: "TDECL",
+    0o105: "TDISMI",
+    0o106: "TDCLI",
+    0o107: "TENTER",
+    0o110: "TSPLIC",
+    0o111: "TPCODE",
+    0o112: "TTYPEW",
+    0o113: "TTYPEC",
+    0o114: "TGATOM",
+    0o115: "TREADA",
+    0o116: "TUNWIN",
+    0o117: "TUBIND",
+    0o120: "TLOCB",
+    0o121: "TDEFQ",
+    0o122: "TOFFS", # not in 54
+}
+for value, name in type_codes.items():
+    globals()[name] = value
+
+def read_save(args):
+    mem = [0] * (1 << 18)
+
+    gen = read_file(args)
+
+    # RESTORE (from MUDSYS;SAVE >) {
+
+    # CKVRS {
+    w = gen.next()
+    version = int(w.ascii().rstrip())
+    w.show("Muddle version ", version)
+    # }
+
+    # Addresses in the interpreter
+    # You can figure these out in a pinch just from the image, since they're
+    # all in the low memory section that gets dumped -- PMAPB is pretty easy to
+    # spot (52525252...).
+    PAGESIZE = 0o2000
+    hibot = 0o700000 # in all versions?
+    if version == 54:
+        PURTOP = 0o123
+        PMAPB = 0o126
+        GLOBSP = 0o1364
+    elif version == 56:
+        PURTOP = 0o167
+        PMAPB = 0o175
+        GLOBSP = 0o1566
+    elif version == 105: # from panda
+        PURTOP = 0o165
+        PMAPB = 0o170
+        GLOBSP = 0o1674
+    else:
+        note("Unknown version")
+        sys.exit(1)
+
+    w = gen.next()
+    w.show("P.TOP")
+
+    w = gen.next()
+    if w.value != 0:
+        w.show("Old slow save VECTOP")
+        # XXX implement
+        sys.exit(1)
+    w.show("Fast save")
+
+    w = gen.next()
+    w.show("VECTOP")
+
+    # FASTR (FSAVE1)
+    w = gen.next()
+    partop = w.value
+    w.show("PARTOP rounded")
+
+    # Where to start reading - note we've read 5 words so this makes file
+    # locations correspond with memory locations for the low memory
+    start_loc = 5
+    note("Low memory from ", oct(start_loc), " to ", oct(partop))
+    for i in range(start_loc, partop):
+        mem[i] = gen.next().value
+
+    purtop = mem[PURTOP]
+
+    # PURIN (PUROUT) {
+    note("Pure pages from ", oct(purtop), " to ", oct(hibot))
+    for page in range(purtop // PAGESIZE, hibot // PAGESIZE):
+        # CHKPGI {
+        entry = mem[PMAPB + (page // 16)]
+        mask = 0o400000000000 >> ((2 * (page % 16)) + 1)
+        is_saved = (entry & mask) != 0
+        note("Page ", oct(page), ": saved = ", is_saved)
+        # }
+
+        if is_saved:
+            for i in range(page * PAGESIZE, (page + 1) * PAGESIZE):
+                mem[i] = gen.next().value
+    # pages from PURTOP to HIBOT
+    # ... only if CHKPGI reports page as purified, else skipped
+    # which it gets from PMAPB
+    # }
+
+    # }
+
+    # XXX 54 save has 6 words of zeros at end...
+
+    def get_ascii(adr, count, z=False):
+        """Get a 7-bit ASCII string. If z, stop on NUL."""
+        s = ""
+        i = 0
+        while True:
+            c = (mem[adr + (i // 5)] >> (29 - ((i % 5) * 7))) & 0x7F
+            if i == count or (z and c == 0):
+                return s
+            s += chr(c)
+            i += 1
+
+    def dump_obj(typew, valuew, level=0):
+        typec = LH(typew)
+        indent = "  " * level
+
+        typename = type_codes.get(typec)
+        if typename is None:
+            # XXX Look up in type vector?
+            typename = "Type%o" % typec
+        else:
+            typename = typename[1:]
+
+        if typec == TFIX:
+            print(indent + "%s %d." % (typename, valuew))
+
+        elif typec == TCHSTR:
+            if LH(valuew) != 0o10700:
+                # XXX Handle any 7-bit byte pointer
+                typename = "sliced " + typename
+            value = get_ascii(RH(valuew) + 1, RH(typew))
+            print(indent + "%s %s" % (typename, repr(value)))
+
+        elif typec == TLIST:
+            print(indent + "%s" % typename)
+            ptr = RH(valuew)
+            while ptr != 0:
+                dump_plain(ptr, level + 1)
+                ptr = RH(mem[ptr])
+
+        elif typec == TVEC:
+            count = NLH(valuew) / 2
+            base = RH(valuew)
+            print(indent + "%s length %d." % (typename, count))
+            for i in range(count):
+                dump_plain(base + (2 * i), level + 1)
+
+        elif typec in (TUVEC, TOBLS):
+            count = NLH(valuew)
+            base = RH(valuew)
+            element_typew = (LH(mem[base + count]) & 0o37777) << 18
+            print(indent + "%s length %d." % (typename, count))
+            for i in range(count):
+                dump_obj(element_typew, mem[base + i], level + 1)
+
+        elif typec in (TATOM, TGATOM):
+            atom_ptr = RH(valuew)
+            # Ignoring other fields...
+            name = get_ascii(atom_ptr + 3, 5 * (NLH(valuew) - 3), z=True)
+            print(indent + "%s %s" % (typename, name))
+
+        elif typec in (TLOSE, TFALSE):
+            # Types with no content
+            print(indent + typename)
+
+        else:
+            # Some type we don't handle yet
+            print(indent + "[T%s,,%o %o,,%o]" % (typename, RH(typew), LH(valuew), RH(valuew)))
+
+    def dump_plain(adr, level=0):
+        dump_obj(mem[adr], mem[adr + 1], level)
+
+    # Walk the global stack to find the global bindings
+    globsp_val = mem[GLOBSP + 1]
+    for i in range(0, NLH(globsp_val), 4):
+        adr = RH(globsp_val) + i
+        print("%o:" % adr, end="")
+        dump_plain(adr)
+        dump_plain(adr + 2, level=1)
+
+if __name__ == "__main__":
+    read_save(sys.argv[1:])
