@@ -96,18 +96,44 @@ type_codes = {
 for value, name in type_codes.items():
     globals()[name] = value
 
+# XXX Is there a way to get this from the image?
+primtypes = {
+    TFORM: TLIST,
+    TDECL: TLIST,
+    TRSUBR: TVEC,
+    TOBLS: TUVEC, # really a hashtable (UVEC of LISTs of ATOMs)
+    TGATOM: TATOM,
+    }
+
+def primtype(typec):
+    return primtypes.get(typec, typec)
+
+for value in type_codes.keys():
+    if value not in primtypes:
+        primtypes[value] = value
+
 def read_save(args):
     mem = [0] * (1 << 18)
 
-    gen = read_file(args)
+    if args[0].startswith("-e"):
+        # This is a Muddle executable, in a format dis10 understands
+        is_exec = True
+        version = int(args[0][2:])
+        args = args[1:]
+    else:
+        # This is a Muddle SAVE file
+        is_exec = False
 
-    # RESTORE (from MUDSYS;SAVE >) {
+    gen = read_file(args, raw=not is_exec)
 
-    # CKVRS {
-    w = gen.next()
-    version = int(w.ascii().rstrip())
-    w.show("Muddle version ", version)
-    # }
+    if not is_exec:
+        # RESTORE (from MUDSYS;SAVE >) {
+
+        # CKVRS {
+        w = gen.next()
+        version = int(w.ascii().rstrip())
+        w.show("Muddle version ", version)
+        # }
 
     # Addresses in the interpreter
     # You can figure these out in a pinch just from the image, since they're
@@ -116,69 +142,92 @@ def read_save(args):
     PAGESIZE = 0o2000
     hibot = 0o700000 # in all versions?
     if version == 54:
-        PURTOP = 0o123
-        PMAPB = 0o126
-        GLOBSP = 0o1364
-    elif version == 56:
-        PURTOP = 0o167
-        PMAPB = 0o175
-        GLOBSP = 0o1566
-    elif version == 105: # from panda
+        PURTOP = 0o123      # 2nd of two identical words, PMAPB-3
+        PMAPB = 0o126       # block 52525252...
+        GLOBSP = 0o1364     # look for type sequence 23,23,23,23,23,26,25,*25
+        GLOTOP = 0o1372     # next 25 after GLOBSP
+    elif version == 104:
+        # no interpreter - from <mdl>m104uni.save.1, but that file's corrupt
+        # (-Wascii but with \r\n -> \n mangling or similar?)
+        PURTOP = 0o163
+        PMAPB = 0o166
+        GLOBSP = 0o1474
+        GLOTOP = 0o1502
+    elif version == 105:
+        # from panda zork.sav -Wascii
         PURTOP = 0o165
         PMAPB = 0o170
         GLOBSP = 0o1674
+        GLOTOP = 0o1666
+    elif version == 56:
+        # Built from source for ITS
+        PURTOP = 0o167
+        PMAPB = 0o175
+        GLOBSP = 0o1566
+        GLOTOP = 0o1574
+    elif version == 106:
+        # from <mdl.comp>comp106.save.1 -Wascii - corrupt??
+        PURTOP = 0o217
+        PMAPB = 0o222
+        GLOBSP = 0o1677
+        GLOTOP = 0o1705
     else:
         note("Unknown version")
         sys.exit(1)
 
-    w = gen.next()
-    w.show("P.TOP")
+    if is_exec:
+        note("Executable file")
+        for w in gen:
+            mem[w.addr] = w.value
+    else:
+        w = gen.next()
+        w.show("P.TOP")
 
-    w = gen.next()
-    if w.value != 0:
-        w.show("Old slow save VECTOP")
-        # XXX implement
-        sys.exit(1)
-    w.show("Fast save")
+        w = gen.next()
+        if w.value != 0:
+            w.show("Old slow save VECTOP")
+            # XXX implement
+            sys.exit(1)
+        w.show("Fast save")
 
-    w = gen.next()
-    w.show("VECTOP")
+        w = gen.next()
+        w.show("VECTOP")
 
-    # FASTR (FSAVE1)
-    w = gen.next()
-    partop = w.value
-    w.show("PARTOP rounded")
+        # FASTR (FSAVE1)
+        w = gen.next()
+        partop = w.value
+        w.show("PARTOP rounded")
 
-    # Where to start reading - note we've read 5 words so this makes file
-    # locations correspond with memory locations for the low memory
-    start_loc = 5
-    note("Low memory from ", oct(start_loc), " to ", oct(partop))
-    for i in range(start_loc, partop):
-        mem[i] = gen.next().value
+        # Where to start reading - note we've read 5 words so this makes file
+        # locations correspond with memory locations for the low memory
+        start_loc = 5
+        note("Low memory from ", oct(start_loc), " to ", oct(partop))
+        for i in range(start_loc, partop):
+            mem[i] = gen.next().value
 
-    purtop = mem[PURTOP]
+        purtop = mem[PURTOP]
 
-    # PURIN (PUROUT) {
-    note("Pure pages from ", oct(purtop), " to ", oct(hibot))
-    for page in range(purtop // PAGESIZE, hibot // PAGESIZE):
-        # CHKPGI {
-        entry = mem[PMAPB + (page // 16)]
-        mask = 0o400000000000 >> ((2 * (page % 16)) + 1)
-        is_saved = (entry & mask) != 0
-        note("Page ", oct(page), ": saved = ", is_saved)
+        # PURIN (PUROUT) {
+        note("Pure pages from ", oct(purtop), " to ", oct(hibot))
+        for page in range(purtop // PAGESIZE, hibot // PAGESIZE):
+            # CHKPGI {
+            entry = mem[PMAPB + (page // 16)]
+            mask = 0o400000000000 >> ((2 * (page % 16)) + 1)
+            is_saved = (entry & mask) != 0
+            note("Page ", oct(page), ": saved = ", is_saved)
+            # }
+
+            if is_saved:
+                for i in range(page * PAGESIZE, (page + 1) * PAGESIZE):
+                    mem[i] = gen.next().value
+        # pages from PURTOP to HIBOT
+        # ... only if CHKPGI reports page as purified, else skipped
+        # which it gets from PMAPB
         # }
 
-        if is_saved:
-            for i in range(page * PAGESIZE, (page + 1) * PAGESIZE):
-                mem[i] = gen.next().value
-    # pages from PURTOP to HIBOT
-    # ... only if CHKPGI reports page as purified, else skipped
-    # which it gets from PMAPB
-    # }
+        # }
 
-    # }
-
-    # XXX 54 save has 6 words of zeros at end...
+        # XXX 54 save has 6 words of zeros at end...
 
     def get_ascii(adr, count, z=False):
         """Get a 7-bit ASCII string. If z, stop on NUL."""
@@ -191,9 +240,45 @@ def read_save(args):
             s += chr(c)
             i += 1
 
+    def atom_name(typew, valuew):
+        assert primtype(LH(typew)) == TATOM
+        atom_ptr = RH(valuew)
+        return get_ascii(atom_ptr + 3, 5 * (NLH(valuew) - 3), z=True)
+
+    # Walk the global stack to find the global bindings
+    g_defs = []
+    g_values = {}
+    globsp_val = mem[GLOBSP + 1]
+    note("GLOBSP = %o" % globsp_val)
+    for i in range(0, NLH(globsp_val), 4):
+        adr = RH(globsp_val) + i
+        name = atom_name(mem[adr], mem[adr + 1])
+        typew, valuew = mem[adr + 2], mem[adr + 3]
+        g_defs.append((adr, name))
+
+        # Remember global values for later printing, unless
+        # they're something trivial that will show up multiple times
+        typec = LH(typew)
+        primc = primtype(typec)
+        if primc == TLIST and RH(valuew) == 0:
+            # Empty LIST
+            pass
+        elif primc in (TLOSE, TFALSE):
+            # Boring
+            pass
+        else:
+            g_values[(typew, valuew)] = name
+
     def dump_obj(typew, valuew, level=0):
         typec = LH(typew)
+        primc = primtype(typec)
         indent = "  " * level
+
+        g_name = g_values.get((typew, valuew))
+        if level > 1 and g_name is not None:
+            # This is identical to (and thus probably a reference to) a global
+            print(indent + "," + g_name)
+            return
 
         typename = type_codes.get(typec)
         if typename is None:
@@ -202,43 +287,49 @@ def read_save(args):
         else:
             typename = typename[1:]
 
-        if typec == TFIX:
+        if primc == TFIX:
             print(indent + "%s %d." % (typename, valuew))
 
-        elif typec == TCHSTR:
+        elif primc == TCHSTR:
             if LH(valuew) != 0o10700:
                 # XXX Handle any 7-bit byte pointer
                 typename = "sliced " + typename
             value = get_ascii(RH(valuew) + 1, RH(typew))
             print(indent + "%s %s" % (typename, repr(value)))
 
-        elif typec == TLIST:
-            print(indent + "%s" % typename)
+        elif primc == TLIST:
             ptr = RH(valuew)
+            print(indent + "%s @%o" % (typename, ptr))
             while ptr != 0:
                 dump_plain(ptr, level + 1)
                 ptr = RH(mem[ptr])
 
-        elif typec == TVEC:
+        elif primc == TVEC:
             count = NLH(valuew) / 2
             base = RH(valuew)
-            print(indent + "%s length %d." % (typename, count))
+            print(indent + "%s @%o length %d." % (typename, base, count))
             for i in range(count):
                 dump_plain(base + (2 * i), level + 1)
 
-        elif typec in (TUVEC, TOBLS):
+        elif primc == TUVEC:
             count = NLH(valuew)
             base = RH(valuew)
             element_typew = (LH(mem[base + count]) & 0o37777) << 18
-            print(indent + "%s length %d." % (typename, count))
+            print(indent + "%s @%o length %d." % (typename, base, count))
             for i in range(count):
                 dump_obj(element_typew, mem[base + i], level + 1)
 
-        elif typec in (TATOM, TGATOM):
-            atom_ptr = RH(valuew)
+        elif primc == TATOM:
             # Ignoring other fields...
-            name = get_ascii(atom_ptr + 3, 5 * (NLH(valuew) - 3), z=True)
-            print(indent + "%s %s" % (typename, name))
+            print(indent + "%s %s" % (typename, atom_name(typew, valuew)))
+
+        elif typec == TLOCR:
+            print(indent + typename)
+            dump_plain((RH(valuew) + mem[GLOTOP + 1]) & 0o777777, level + 1)
+
+        elif typec == TDEFER:
+            print(indent + typename)
+            dump_plain(RH(valuew), level + 1)
 
         elif typec in (TLOSE, TFALSE):
             # Types with no content
@@ -248,15 +339,17 @@ def read_save(args):
             # Some type we don't handle yet
             print(indent + "[T%s,,%o %o,,%o]" % (typename, RH(typew), LH(valuew), RH(valuew)))
 
+    dump_seen = set()
     def dump_plain(adr, level=0):
+        if adr in dump_seen:
+            print(("  " * level) + "(recursion %o)" % adr)
+            return
+        dump_seen.add(adr)
         dump_obj(mem[adr], mem[adr + 1], level)
+        dump_seen.remove(adr)
 
-    # Walk the global stack to find the global bindings
-    globsp_val = mem[GLOBSP + 1]
-    for i in range(0, NLH(globsp_val), 4):
-        adr = RH(globsp_val) + i
-        print("%o:" % adr, end="")
-        dump_plain(adr)
+    for adr, name in g_defs:
+        print("%s @%o =" % (name, adr))
         dump_plain(adr + 2, level=1)
 
 if __name__ == "__main__":
