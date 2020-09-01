@@ -9,6 +9,14 @@ for w in range(1, 5):
     for b in range(1, 10):
         globals()["B%d_%d" % (w, b)] = ((w - 1) * 9) + b - 1
 
+def LH(w):
+    return (w >> 18) & 0o777777
+def NLH(w):
+    """Count from an AOBJP pointer."""
+    return (0o1000000 - LH(w)) & 0o777777
+def RH(w):
+    return w & 0o777777
+
 SQUOZE = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.$%"
 
 class Word:
