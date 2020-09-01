@@ -92,6 +92,9 @@ xloop:	push p,x
 ;inner loop - iterate (z := (z * z) + c) and see if z escapes.
 ;FIXME can this be made small enough to run in the registers on the KA?
 ;FIXME save p in memory, and use that for iteration count?
+;FIXME x and y could be in memory for this
+;FIXME can fmpr*b* etc. save a move?
+;FIXME Lars' version saves a register by computing zy'=(2*zx*zy)+x
 loop:	move b,zx		;b := zx ** 2
 	fmpr b,zx
 	move a,zy		;a := zy ** 2
