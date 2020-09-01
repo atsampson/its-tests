@@ -31,6 +31,13 @@ class Word:
             return val - (topbit << 1)
         return val
 
+    def ascii(self):
+        s = ""
+        for i in range(5):
+            pos = 35 - (i * 7)
+            s += chr(self.bits(pos, pos - 6))
+        return s
+
     def squoze(self):
         s = ""
         v = self.value & ((1L << 32) - 1)
