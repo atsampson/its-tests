@@ -75,10 +75,14 @@ def note(*fields):
 # There may be continuation lines for complex instructions.
 word_re = re.compile(r'^([0-7]+):\s+([0-7]+)(\s+.*)?$')
 
-def read_file(args):
+def read_file(args, raw=True):
     """Read an input file using dis10, and yield a Word for each word."""
 
-    p = subprocess.Popen(["dis10", "-r"] + args, stdout=subprocess.PIPE)
+    cmd = ["dis10"]
+    if raw:
+        cmd += ["-r"]
+    cmd += args
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     f = p.stdout
 
     # Discard lines until we see the first address.
