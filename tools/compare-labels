@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+# Given two dis10 disassemblies, extract the symbol table from both, and show
+# which functions have different lengths.
+#
+# The idea is that you can use this when you're trying to reconstruct source
+# code for a binary -- if you have source that's partly correct (e.g. for a
+# different version of the binary), this will give you hints about where the
+# problems are. Once you've got the lengths of the functions right, diffing the
+# disassemblies will give you the remaining information.
+
+import re
+import sys
+
+SYMBOL_RE = re.compile(r'^  *Symbol ([^ ]+) += ([0-7]+) ')
+
+assert len(sys.argv) == 3
+
+fns = []
+names = []
+locs = []
+p = []
+for fn in sys.argv[1:3]:
+    symbols = []
+    with open(fn) as f:
+        for l in f.readlines():
+            m = SYMBOL_RE.match(l)
+            if m is not None:
+                # These addresses are octal...
+                symbols.append((int(m.group(2), 8), m.group(1)))
+    symbols.sort()
+
+    fns.append(fn)
+    names.append([sym[1] for sym in symbols])
+    locs.append({name: loc for loc, name in symbols})
+    p.append(0)
+
+# Find the names that occur in both files
+common_names = set(locs[0].keys()).intersection(set(locs[1].keys()))
+
+# Measure the length between symbols
+lens = []
+for i in (0, 1):
+    flens = {}
+    prev_loc = 0
+    for name in names[i]:
+        # Ignore symbols that aren't in both files
+        if name not in common_names:
+            continue
+
+        loc = locs[i][name]
+        flens[name] = loc - prev_loc
+        prev_loc = loc
+    lens.append(flens)
+
+while True:
+    # XXX Should really print the remaining symbols, but the ones with high
+    # addresses usually aren't very interesting anyway...
+    if p[0] >= len(names[0]):
+        print("End of file on", fns[0])
+        break
+    if p[1] >= len(names[1]):
+        print("End of file on", fns[1])
+        break
+
+    name0 = names[0][p[0]]
+    name1 = names[1][p[1]]
+    if name0 == name1:
+        if lens[0][name0] != lens[1][name0]:
+            print(name0, "- length", lens[0][name0], "in", fns[0], "vs",
+                  lens[1][name0], "in", fns[1])
+        else:
+            print(name0, "- OK")
+        p[0] += 1
+        p[1] += 1
+    elif name0 not in common_names:
+        print(name0, "- only in", fns[0])
+        p[0] += 1
+    elif name1 not in common_names:
+        print(name1, "- only in", fns[1])
+        p[1] += 1
+    else:
+        # Different order between the two files.
+        # Skip the minimal number of symbols to align the two files again.
+
+        dists = {}
+        for i in (0, 1):
+            dists[i] = {}
+            for j in range(p[i], len(names[i])):
+                dists[i][names[i][j]] = j - p[i]
+
+        best_name = None
+        best_dist = None
+        for name in common_names:
+            if name in dists[0] and name in dists[1]:
+                dist = dists[0][name] + dists[1][name]
+                if best_dist is None or dist < best_dist:
+                    best_name = name
+                    best_dist = dist
+
+        for i in (0, 1):
+            while names[i][p[i]] != best_name and p[i] < len(names[i]):
+                print(names[i][p[i]], "- skipping in", fns[i])
+                p[i] += 1
