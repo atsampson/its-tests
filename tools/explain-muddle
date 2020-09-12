@@ -148,8 +148,8 @@ def read_save(args):
         GLOBSP = 0o1364     # look for type sequence 23,23,23,23,23,26,25,*25
         GLOTOP = 0o1372     # next 25 after GLOBSP
     elif version == 104:
-        # no interpreter - from <mdl>m104uni.save.1, but that file's corrupt
-        # (-Wascii but with \r\n -> \n mangling or similar?)
+        # mdl104.exe from LCM+L (-Wascii)
+        # Matches <mdl>m104uni.save.1 (-Wascii, corrupt)
         PURTOP = 0o163
         PMAPB = 0o166
         GLOBSP = 0o1474
