@@ -102,6 +102,7 @@ primtypes = {
     TDECL: TLIST,
     TEXPR: TLIST,
     TRSUBR: TVEC,
+    TENTER: TVEC,
     TOBLS: TUVEC, # really a hashtable (UVEC of LISTs of ATOMs)
     TGATOM: TATOM,
     }
@@ -246,9 +247,13 @@ def read_save(args):
         atom_ptr = RH(valuew)
         return get_ascii(atom_ptr + 3, 5 * (NLH(valuew) - 3), z=True)
 
+    # Dump PURVEC
+
+    # Objects we've already dumped and don't want to repeat; value:desc.
+    r_values = {}
+
     # Walk the global stack to find the global bindings
     g_defs = []
-    g_values = {}
     globsp_val = mem[GLOBSP + 1]
     note("GLOBSP = %o" % globsp_val)
     for i in range(0, NLH(globsp_val), 4):
@@ -268,17 +273,19 @@ def read_save(args):
             # Boring
             pass
         else:
-            g_values[(typew, valuew)] = name
+            # If we see this value while dumping, it's identical to (and thus
+            # probably a reference to) a global
+            r_values[(typew, valuew)] = "," + name
 
     def dump_obj(typew, valuew, level=0):
         typec = LH(typew)
         primc = primtype(typec)
         indent = "  " * level
 
-        g_name = g_values.get((typew, valuew))
-        if level > 1 and g_name is not None:
-            # This is identical to (and thus probably a reference to) a global
-            print(indent + "," + g_name)
+        # Is it something we've already dumped (or a global)?
+        r_desc = r_values.get((typew, valuew))
+        if level > 1 and r_desc is not None:
+            print(indent + r_desc)
             return
 
         typename = type_codes.get(typec)
@@ -308,9 +315,27 @@ def read_save(args):
         elif primc == TVEC:
             count = NLH(valuew) / 2
             base = RH(valuew)
-            print(indent + "%s @%o length %d." % (typename, base, count))
+
+            extra = ""
+            if typec == TENTER:
+                # RSUBR-ENTRY - offset is in RH of the name ATOM
+                extra = (" name %s offset %d."
+                         % (atom_name(mem[base + 2], mem[base + 3]),
+                            RH(mem[base + 2])))
+            elif typec == TRSUBR:
+                extra = " name %s" % atom_name(mem[base + 2], mem[base + 3])
+
+            print(indent + ("%s @%o length %d." % (typename, base, count))
+                  + extra)
             for i in range(count):
                 dump_plain(base + (2 * i), level + 1)
+
+            if typec == TRSUBR and (typew, valuew) not in r_values:
+                # Only print RSUBRs once (usually multiple entries)
+                r_values[(typew, valuew)] = ("(RSUBR @%o name %s)"
+                                             % (base,
+                                                atom_name(mem[base + 2],
+                                                          mem[base + 3])))
 
         elif primc == TUVEC:
             count = NLH(valuew)
