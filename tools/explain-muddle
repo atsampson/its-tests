@@ -96,7 +96,7 @@ type_codes = {
 for value, name in type_codes.items():
     globals()[name] = value
 
-# XXX Is there a way to get this from the image?
+# XXX Is there a way to get this from the image? (see SAT)
 primtypes = {
     TFORM: TLIST,
     TDECL: TLIST,
