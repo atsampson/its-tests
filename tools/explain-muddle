@@ -147,6 +147,7 @@ def read_save(args):
         PURTOP = 0o123      # 2nd of two identical words, PMAPB-3
         PMAPB = 0o126       # block 52525252...
         GLOBSP = 0o1364     # look for type sequence 23,23,23,23,23,26,25,*25
+        PURVEC = 0o1366     # GLOBSP+2
         GLOTOP = 0o1372     # next 25 after GLOBSP
     elif version == 104:
         # mdl104.exe from LCM+L (-Wascii)
@@ -154,24 +155,28 @@ def read_save(args):
         PURTOP = 0o163
         PMAPB = 0o166
         GLOBSP = 0o1474
+        PURVEC = 0o1476
         GLOTOP = 0o1502
     elif version == 105:
         # from panda zork.sav -Wascii
         PURTOP = 0o165
         PMAPB = 0o170
         GLOBSP = 0o1674
+        PURVEC = 0o1676
         GLOTOP = 0o1666
     elif version == 56:
         # Built from source for ITS
         PURTOP = 0o167
         PMAPB = 0o175
         GLOBSP = 0o1566
+        PURVEC = 0o1570
         GLOTOP = 0o1574
     elif version == 106:
         # from <mdl.comp>comp106.save.1 -Wascii - corrupt??
         PURTOP = 0o217
         PMAPB = 0o222
         GLOBSP = 0o1677
+        PURVEC = 0o1701
         GLOTOP = 0o1705
     else:
         note("Unknown version")
@@ -247,15 +252,27 @@ def read_save(args):
         atom_ptr = RH(valuew)
         return get_ascii(atom_ptr + 3, 5 * (NLH(valuew) - 3), z=True)
 
+    purvec_val = mem[PURVEC + 1]
+    note("PURVEC = %o" % purvec_val)
+    globsp_val = mem[GLOBSP + 1]
+    note("GLOBSP = %o" % globsp_val)
+
     # Dump PURVEC
+    print("\nPure code references:")
+    purvec_refs = {}
+    for i in range(0, NLH(purvec_val), 4):
+        name = mem[RH(purvec_val) + i]
+        if name != 0:
+            name_s = Word(0, name, []).sixbit().rstrip()
+            purvec_refs[i] = name_s
+            print("- %6o = %s" % (i, name_s))
 
     # Objects we've already dumped and don't want to repeat; value:desc.
     r_values = {}
 
     # Walk the global stack to find the global bindings
     g_defs = []
-    globsp_val = mem[GLOBSP + 1]
-    note("GLOBSP = %o" % globsp_val)
+    print("\nGlobals:")
     for i in range(0, NLH(globsp_val), 4):
         adr = RH(globsp_val) + i
         name = atom_name(mem[adr], mem[adr + 1])
@@ -360,6 +377,10 @@ def read_save(args):
         elif typec in (TLOSE, TFALSE):
             # Types with no content
             print(indent + typename)
+
+        elif typec == TPCODE:
+            pure = purvec_refs[LH(valuew)]
+            print(indent + "%s name %s offset %o" % (typename, pure, RH(valuew)))
 
         else:
             # Some type we don't handle yet
