@@ -46,6 +46,13 @@ class Word:
             s += chr(self.bits(pos, pos - 6))
         return s
 
+    def sixbit(self):
+        s = ""
+        for i in range(6):
+            pos = 35 - (i * 6)
+            s += chr(self.bits(pos, pos - 5) + 32)
+        return s
+
     def squoze(self):
         s = ""
         v = self.value & ((1L << 32) - 1)
