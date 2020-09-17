@@ -147,7 +147,7 @@ def read_save(args):
         PURTOP = 0o123      # 2nd of two identical words, PMAPB-3
         PMAPB = 0o126       # block 52525252...
         GLOBSP = 0o1364     # look for type sequence 23,23,23,23,23,26,25,*25
-        PURVEC = 0o1366     # GLOBSP+2
+        PURVEC = 0o1366     # GLOBSP+2 (type 23)
         GLOTOP = 0o1372     # next 25 after GLOBSP
     elif version == 104:
         # mdl104.exe from LCM+L (-Wascii)
@@ -157,6 +157,13 @@ def read_save(args):
         GLOBSP = 0o1474
         PURVEC = 0o1476
         GLOTOP = 0o1502
+    elif version == 55:
+        # From partial save files - needs checking against interpreter
+        PURTOP = 0o124
+        PMAPB = 0o127
+        GLOBSP = 0o1564
+        PURVEC = 0o1566
+        GLOTOP = 0o1573
     elif version == 105:
         # from panda zork.sav -Wascii
         PURTOP = 0o165
