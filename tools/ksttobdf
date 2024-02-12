@@ -123,7 +123,8 @@ def convert(args):
         # FIXME adjust encoding
         out("STARTCHAR char%d" % k)
         out("ENCODING %d" % k)
-        out("SWIDTH %d %d" % (v.char_width * (1000 / points), 0)) # XXX?
+        swidth = int((v.char_width / ((points / 1000.0) * (res / 72.0))) + 0.5)
+        out("SWIDTH %d %d" % (swidth, 0))
         out("DWIDTH %d %d" % (v.char_width, 0))
         out("BBX %d %d %d %d" % (v.raster_width, height, -v.left_kern, -(height - base_line)))
         out("BITMAP")
