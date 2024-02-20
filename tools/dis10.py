@@ -28,7 +28,7 @@ class Word:
     def bits(self, left=35, right=None):
         if right is None:
             right = left
-        return (self.value >> right) & ((1L << (1 + left - right)) - 1)
+        return (self.value >> right) & ((1 << (1 + left - right)) - 1)
 
     def sbits(self, left=35, right=None):
         if right is None:
@@ -55,27 +55,27 @@ class Word:
 
     def squoze(self):
         s = ""
-        v = self.value & ((1L << 32) - 1)
+        v = self.value & ((1 << 32) - 1)
         for i in range(6):
             s = SQUOZE[v % 40] + s
             v /= 40
         return (self.value >> 32), s.rstrip()
 
     def show(self, *fields):
-        print "%06o:  %012o  %s" % (self.addr, self.value,
-                                    "".join(str(f) for f in fields))
+        print("%06o:  %012o  %s" % (self.addr, self.value,
+                                    "".join(str(f) for f in fields)))
 
     def dis(self, tag=None):
         for i, l in enumerate(self.lines):
             if i == 0 and tag is not None:
-                print (l + (" " * 70))[:70] + "(" + tag + ")"
+                print((l + (" " * 70))[:70] + "(" + tag + ")")
             else:
-                print l
+                print(l)
 
 dummy_word = Word(0, 0, [])
 
 def note(*fields):
-    print "                       %s" % ("".join(str(f) for f in fields))
+    print("                       %s" % ("".join(str(f) for f in fields)))
 
 # Each dis10 output line looks like:
 # 010503:  515350530000  hrlzi    7, 530000(10)   ;"IKHK  " "S.E0\0"
@@ -94,7 +94,7 @@ def read_file(args, raw=True):
 
     # Discard lines until we see the first address.
     while True:
-        l = f.readline()
+        l = f.readline().decode('ascii')
         if l == "":
             # No data. Input must be empty.
             p.wait()
@@ -113,7 +113,7 @@ def read_file(args, raw=True):
         value = int(m.group(2), 8)
 
         while True:
-            l = f.readline()
+            l = f.readline().decode('ascii')
             if l == "":
                 # End of input.
                 yield Word(addr, value, lines)
