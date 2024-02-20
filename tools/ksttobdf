@@ -20,9 +20,9 @@ def convert(args):
     # XXX assumes filename is last
     basename = os.path.basename(args[-1])
 
-    w = gen.next()
+    w = next(gen)
     kstid = w.value
-    w = gen.next()
+    w = next(gen)
     col_pos_adj = w.bits(35, 27)
     base_line = w.bits(26, 18)
     height = w.bits(17, 0)
@@ -34,14 +34,14 @@ def convert(args):
 
     glyphs = {}
     while True:
-        w = gen.next()
+        w = next(gen)
         if w.sbits() == -1:
             break
 
-        w = gen.next()
+        w = next(gen)
         left_kern = w.sbits(35, 18)
         char_code = w.bits(17, 0)
-        w = gen.next()
+        w = next(gen)
         raster_width = w.bits(35, 18)
         char_width = w.bits(17, 0)
         if raster_width == 0:
@@ -59,9 +59,9 @@ def convert(args):
         lines = []
         for y in range(height):
             data = []
-            for i in range((raster_width + 7) / 8):
+            for i in range((raster_width + 7) // 8):
                 if left == 0:
-                    w = gen.next()
+                    w = next(gen)
                     left = 4
                 val = w.bits(35, 28)
 
@@ -79,7 +79,7 @@ def convert(args):
 
     # XXX not true for 5x7
     res = 200
-    points = 72 * height / res
+    points = 72 * height // res
 
     props = {
         "FONT_ASCENT": base_line,
@@ -99,7 +99,7 @@ def convert(args):
         ("RESOLUTION_X", res),
         ("RESOLUTION_Y", res),
         ("SPACING", "P"), #XXX
-        ("AVERAGE_WIDTH", sum(v.char_width for v in glyphs.values()) / len(glyphs)),
+        ("AVERAGE_WIDTH", sum(v.char_width for v in glyphs.values()) // len(glyphs)),
         ("CHARSET_REGISTRY", "ISO8859"),
         ("CHARSET_ENCODING", "1"),
         ]
